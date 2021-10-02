@@ -2,12 +2,20 @@
 * H37IMGR
 *
 * 2021.09.30 LES BIRD
-* SHOULD ALSO WORK FOR PC 5.25 DISKS (WD179X)
+* SHOULD ALSO WORK FOR PC/Z100 5.25 DISKS (WD179X)
 *
         XTEXT   HOSEQU
         XTEXT   HOSDEF
         XTEXT   H37DEF
         XTEXT   HROM
+*
+BUFSIZ  EQU     8192            DISK TRACK BUFFER SIZE
+BAUD96  EQU     0CH             9,600 BAUD
+BAUD19  EQU     06H             19,200 BAUD
+BAUD38  EQU     03H             38,400 BAUD
+BAUD56  EQU     02H             56,000 BAUD
+*
+BAUDIV  EQU     BAUD96
 *
 DLY     EQU     53A
 UIVEC   EQU     40037A          USER INTERRUPT VECTOR
@@ -33,7 +41,7 @@ LSTAT5  EQU     TX5+5
         ORG     USERFWA
 *
 START   EQU     *
-        LXI     D,8192
+        LXI     D,BUFSIZ
         LXI     H,SECBUF
         CALL    ZEROMEM
 * DISMOUNT ALL DRIVES
@@ -48,7 +56,7 @@ START   EQU     *
 *
         JMP     BEGIN
 *
-* SETUP LPT PORT FOR 9600,8N2
+* SETUP LPT PORT FOR XXXX,8N2
 *
 SINT    EQU     *
         DI
@@ -58,7 +66,7 @@ SINT    EQU     *
         OUT     MCNTL4
         DCR     A
         OUT     LCNTL4
-        MVI     A,0CH           9600 baud
+        MVI     A,BAUDIV
         OUT     DVL4
         XRA     A
         OUT     DVH4
@@ -134,7 +142,7 @@ BITS1   RLC
         ORA     C
         POP     B
         RET
-*
+* INT4 ROUTINE
 MYINT   EQU     *
         IN      FD.STAT
         POP     H
@@ -149,7 +157,7 @@ RSTBSY  EQU     *
         CALL    DLY
         IN      FD.STAT
         RET
-*
+* DISK DRIVE UNIT TO WD1797 BITS
 UNIBITS EQU     *
         LDA     AIO.UNI
         ADI     4
@@ -172,7 +180,7 @@ SELDRV  EQU     *
         POP     B
         POP     PSW
         RET
-*
+* QUICK METHOD TO TURN THE PREV DRIVE BACK ON
 SELPRV  EQU     *
         LDA     CONCMD
         OUT     DK.CON
@@ -245,7 +253,7 @@ STPO2   EQU     *
         JNZ     STPO1
         CALL    DLY40
         RET
-*
+* SEEK TO TRACK 0
 SEEK0   EQU     *
         CALL    SELDRV
         XRA     A
@@ -278,7 +286,7 @@ SEEKD3  EQU     *
         RNZ
         STC
         RET
-* C=TRK
+* C=TRK (STEP IN OR OUT TO REACH TARGET)
 SEEKTO  EQU     *
         CALL    H37TRK
         MOV     A,C
@@ -288,7 +296,7 @@ SEEKTO  EQU     *
         RZ                      ALREADY AT TRK C
         JC      STPIN
         JMP     STPOUT
-* DE=BUFFER
+* DE=BUFFER - READ TRACK INTO BUFFER
 READLP  EQU     *
         LXI     B,0             TOTAL BYTES READ
         LXI     H,READL2        RETURN ADDRESS
@@ -322,6 +330,10 @@ READL2  EQU     *
         MOV     L,C
         MOV     H,B
         SHLD    RDCNT
+        CALL    H37TRK
+        IN      FD.SEC
+        DCR     A
+        STA     SPERT
         POP     PSW
         ANI     FDS.NRD+FDS.LDT+FDS.CRC+FDS.RTE
         RZ                      NO ERRORS
@@ -386,10 +398,12 @@ BEGLP1  EQU     *
         JZ      SET1S8
         CPI     '7'
         JZ      SET2S8
+        CPI     'Q'
+        JZ      QUERY
         MVI     A,'?'
         CALL    CHROUT
         JMP     BEGLP1
-*
+* CMD READ DISK IMAGE
 CMDRDI  EQU     *
         CALL    $TYPTX
         DB      'READ DISK IMAGE',8AH
@@ -443,6 +457,8 @@ SENDT   EQU     *
         CALL    CHROUT
         MOV     A,H
         CALL    CHROUT
+        LDA     SPERT
+        CALL    CHROUT
         LXI     D,SECBUF
 SENDT1  EQU     *
         LDAX    D
@@ -455,10 +471,10 @@ SENDT1  EQU     *
         MVI     A,'R'
         CALL    CHROUT          HANDSHAKE
         RET
-*
+* COMMAND WRITE DISK IMAGE
 CMDWDI  EQU     *
         RET
-*
+* COMMAND SET DRIVE 0
 SETDK0  EQU     *
         PUSH    PSW
         CALL    $TYPTX
@@ -468,7 +484,7 @@ SETDK0  EQU     *
         POP     PSW
         CALL    CHROUT          HANDSHAKE
         JMP     BEGLP
-*
+* COMMAND SET DRIVE 1
 SETDK1  EQU     *
         PUSH    PSW
         CALL    $TYPTX
@@ -478,14 +494,14 @@ SETDK1  EQU     *
         POP     PSW
         CALL    CHROUT
         JMP     BEGLP
-*
+* SET DRIVE PARAMETERS (SIDES,TRACKS)
 SETPAR  EQU     *
         MOV     A,B
         STA     NUMSID
         MOV     A,C
         STA     NUMTRK
         RET
-*
+* COMMAND SET SS 40 TRACK
 SET1S4  EQU     *
         PUSH    PSW
         CALL    $TYPTX
@@ -497,7 +513,7 @@ SET1S4  EQU     *
         POP     PSW
         CALL    CHROUT
         JMP     BEGLP
-*
+* COMMAND SET DS 40 TRACK
 SET2S4  EQU     *
         PUSH    PSW
         CALL    $TYPTX
@@ -509,7 +525,7 @@ SET2S4  EQU     *
         POP     PSW
         CALL    CHROUT
         JMP     BEGLP
-*
+* COMMAND SET SS 80 TRACK
 SET1S8  EQU     *
         PUSH    PSW
         CALL    $TYPTX
@@ -521,7 +537,7 @@ SET1S8  EQU     *
         POP     PSW
         CALL    CHROUT
         JMP     BEGLP
-*
+* COMMAND SET DS 80 TRACK
 SET2S8  EQU     *
         PUSH    PSW
         CALL    $TYPTX
@@ -533,6 +549,82 @@ SET2S8  EQU     *
         POP     PSW
         CALL    CHROUT
         JMP     BEGLP
+* COMMAND QUERY DISK TYPE
+QUERY   EQU     *
+        PUSH    PSW
+        CALL    $TYPTX
+        DB      'QUERY DISK TYPE',8AH
+        CALL    QUERY1
+        POP     PSW
+        CALL    CHROUT          HANDSHAKE
+        LDA     SPERT           SECTORS PER TRACK
+        CALL    CHROUT
+* READ ADDRESS RESULTS
+        LDA     SECBUF          TRACK
+        CALL    CHROUT
+        LDA     SECBUF+1        SIDE
+        CALL    CHROUT
+        LDA     SECBUF+2        SECTOR
+        CALL    CHROUT
+        LDA     SECBUF+3        SECTOR LENGTH
+        CALL    CHROUT
+        LDA     SECBUF+4        CRC 1
+        CALL    CHROUT
+        LDA     SECBUF+5        CRC 2
+        CALL    CHROUT
+* DISK PARAMETERS
+        LDA     NUMSID          NUM SIDES
+        CALL    CHROUT
+        LHLD    RDCNT
+        MOV     A,L             RDCNT LOW BYTE
+        CALL    CHROUT
+        MOV     A,H             RDCNT HIGH BYTE
+        CALL    CHROUT
+        JMP     BEGLP
+*
+QUERY1  EQU     *
+        CALL    SELDRV
+        MVI     A,1
+        STA     NUMSID          SINGLE SIDED DEFAULT
+        STA     SIDE
+        LXI     B,0100H
+        CALL    READS           TEST READ SIDE 2
+        JC      QUERYS
+        MVI     A,2
+        STA     NUMSID          DOUBLE SIDED DISK
+QUERYS  EQU     *
+        XRA     A
+        STA     SIDE
+        LXI     B,0100H
+        CALL    READS           READ A TRACK FILL SPERT+RDCNT
+        CALL    H37CMD
+        LXI     H,QUERY3
+        SHLD    BLKICW
+        LDA     CONCMD
+        ORI     CON.DRQ
+        OUT     DK.CON
+        LXI     B,0
+        LXI     D,SECBUF
+        LXI     H,QUERY2
+        XRA     A
+        ORI     FDC.RDA+FDF.DLF
+        OUT     FD.CMD
+QUERY2  EQU     *               LOOP UNTIL IRQ4
+        HLT                     WAIT FOR DRQ
+        IN      FD.DAT
+        STAX    D
+        INX     D
+        INX     B
+        PCHL                    LOOP BACK TO READL1
+QUERY3  EQU     *
+        PUSH    PSW
+        MVI     A,FDC.FI
+        OUT     FD.CMD
+        IN      FD.DAT
+        MVI     A,CON.MO
+        OUT     DK.CON
+        POP     PSW
+        RET
 *
 QUIT    EQU     *
         CALL    $TYPTX
@@ -550,6 +642,7 @@ CURSEC  DB      0               1-16
 SIDE    DB      0               0 OR 1
 CONCMD  DB      0               LAST COMMAND SENT TO DK.CON
 *
+SPERT   DB      0               SECTORS PER TRACK
 RDCNT   DW      0               BYTES READ
 NUMTRK  DB      0               NUM TRACKS (40 OR 80)
 NUMSID  DB      0               NUM SIDES (1 OR 2)
