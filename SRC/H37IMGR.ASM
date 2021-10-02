@@ -15,7 +15,7 @@ BAUD19  EQU     06H             19,200 BAUD
 BAUD38  EQU     03H             38,400 BAUD
 BAUD56  EQU     02H             56,000 BAUD
 *
-BAUDIV  EQU     BAUD96
+BAUDIV  EQU     0CH             9600 BAUD IS DEFAULT
 *
 DLY     EQU     53A
 UIVEC   EQU     40037A          USER INTERRUPT VECTOR
@@ -324,7 +324,7 @@ READL1  EQU     *               LOOP UNTIL IRQ4
         INX     B
         PCHL                    LOOP BACK TO READL1
 READL2  EQU     *
-        PUSH    PSW             SAVE FD.STAT FLAGS
+*       PUSH    PSW             SAVE FD.STAT FLAGS
         MVI     A,CON.MO
         OUT     DK.CON
         MOV     L,C
@@ -334,9 +334,10 @@ READL2  EQU     *
         IN      FD.SEC
         DCR     A
         STA     SPERT
-        POP     PSW
-        ANI     FDS.NRD+FDS.LDT+FDS.CRC+FDS.RTE
-        RZ                      NO ERRORS
+*       POP     PSW
+*       ANI     FDS.NRD+FDS.LDT+FDS.CRC+FDS.RTE
+        ORA     A               SECTORS PER TRACK == 0?
+        RNZ                     NO ERRORS
         STC                     ERROR, SET CARRY FLAG
         RET
 * B=SEC (1-255),C=TRK (0-255)
@@ -448,8 +449,12 @@ CMDRD2  EQU     *
         INR     C
         LDA     NUMTRK
         CMP     C
-        JZ      BEGLP
-        JMP     CMDRD1
+        JNZ     CMDRD1
+        MVI     A,0DH
+        CALL    OUT350
+        MVI     A,0AH
+        CALL    OUT350
+        JMP     BEGLP
 * SEND TRACK DATA TO 340Q
 SENDT   EQU     *
         LHLD    RDCNT
@@ -551,12 +556,10 @@ SET2S8  EQU     *
         JMP     BEGLP
 * COMMAND QUERY DISK TYPE
 QUERY   EQU     *
-        PUSH    PSW
+        CALL    CHROUT
         CALL    $TYPTX
         DB      'QUERY DISK TYPE',8AH
         CALL    QUERY1
-        POP     PSW
-        CALL    CHROUT          HANDSHAKE
         LDA     SPERT           SECTORS PER TRACK
         CALL    CHROUT
 * READ ADDRESS RESULTS
@@ -584,19 +587,22 @@ QUERY   EQU     *
 *
 QUERY1  EQU     *
         CALL    SELDRV
-        MVI     A,1
-        STA     NUMSID          SINGLE SIDED DEFAULT
+        MVI     A,2
+        STA     NUMSID          DOUBLE SIDED DEFAULT
+        DCR     A
         STA     SIDE
         LXI     B,0100H
         CALL    READS           TEST READ SIDE 2
-        JC      QUERYS
-        MVI     A,2
-        STA     NUMSID          DOUBLE SIDED DISK
-QUERYS  EQU     *
+        PUSH    PSW
         XRA     A
         STA     SIDE
+        POP     PSW
+        JNC     QUERYS
+        MVI     A,1
+        STA     NUMSID          SINGLE SIDED DISK
         LXI     B,0100H
         CALL    READS           READ A TRACK FILL SPERT+RDCNT
+QUERYS  EQU     *
         CALL    H37CMD
         LXI     H,QUERY3
         SHLD    BLKICW
@@ -615,7 +621,7 @@ QUERY2  EQU     *               LOOP UNTIL IRQ4
         STAX    D
         INX     D
         INX     B
-        PCHL                    LOOP BACK TO READL1
+        PCHL
 QUERY3  EQU     *
         PUSH    PSW
         MVI     A,FDC.FI
