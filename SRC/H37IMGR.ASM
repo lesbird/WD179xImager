@@ -59,7 +59,7 @@ START   EQU     *
 * SETUP LPT PORT FOR XXXX,8N2
 *
 SINT    EQU     *
-        DI
+*       DI
         XRA     A
         OUT     LCNTL4
         OUT     IER4
@@ -74,7 +74,7 @@ SINT    EQU     *
         OUT     LCNTL4
         IN      LSTAT4
         IN      RX4
-        EI
+*       EI
         RET
 *
 * SEND A CHAR IN (A) TO THE LP PORT (340Q)
@@ -170,21 +170,39 @@ SELDRV  EQU     *
         PUSH    PSW
         PUSH    B
         CALL    H37CMD
-        CALL    UNIBITS
-        ORI     CON.MO+CON.EI+CON.MFM
-        STA     CONCMD
-        OUT     DK.CON
+        CALL    SETDENS
         EI
         MVI     A,300/2
         CALL    DLY
         POP     B
         POP     PSW
         RET
-* QUICK METHOD TO TURN THE PREV DRIVE BACK ON
-SELPRV  EQU     *
-        LDA     CONCMD
+* SET DENSITY FROM (DENS)
+SETDENS EQU     *
+        CALL    UNIBITS         A=DRIVE BIT
+        ORI     CON.MO+CON.EI
+        MOV     C,A
+        LDA     DENS            CON.MFM OR 0
+        ORA     C
+        STA     CONCMD          DS0+CON.MO+CON.EI+CON.MFM
         OUT     DK.CON
         RET
+*
+SETMFM  EQU     *
+        MVI     A,CON.MFM
+        STA     DENS
+        JMP     SETDENS
+*
+SETFM   EQU     *
+        MVI     A,0
+        STA     DENS
+        JMP     SETDENS
+* SWITCH DENSITY FM<->MFM
+CHGDENS EQU     *
+        LDA     DENS
+        CPI     CON.MFM
+        JZ      SETFM
+        JMP     SETMFM
 * DESELECT ALL DRIVES
 DSLDRV  EQU     *
         PUSH    PSW
@@ -324,7 +342,6 @@ READL1  EQU     *               LOOP UNTIL IRQ4
         INX     B
         PCHL                    LOOP BACK TO READL1
 READL2  EQU     *
-*       PUSH    PSW             SAVE FD.STAT FLAGS
         MVI     A,CON.MO
         OUT     DK.CON
         MOV     L,C
@@ -334,8 +351,6 @@ READL2  EQU     *
         IN      FD.SEC
         DCR     A
         STA     SPERT
-*       POP     PSW
-*       ANI     FDS.NRD+FDS.LDT+FDS.CRC+FDS.RTE
         ORA     A               SECTORS PER TRACK == 0?
         RNZ                     NO ERRORS
         STC                     ERROR, SET CARRY FLAG
@@ -358,6 +373,7 @@ READS   EQU     *
 * 5 = 2S40T
 * 6 = 1S80T
 * 7 = 2S80T
+* Q = QUERY DISK TYPE
 *
 BEGIN   EQU     *
         CALL    $TYPTX
@@ -401,6 +417,10 @@ BEGLP1  EQU     *
         JZ      SET2S8
         CPI     'Q'
         JZ      QUERY
+        CPI     '9'
+        JZ      B9600
+        CPI     '('
+        JZ      B19200
         MVI     A,'?'
         CALL    CHROUT
         JMP     BEGLP1
@@ -486,6 +506,7 @@ SETDK0  EQU     *
         DB      'SET DK0',8AH
         XRA     A
         STA     AIO.UNI
+        CALL    SEEK0
         POP     PSW
         CALL    CHROUT          HANDSHAKE
         JMP     BEGLP
@@ -496,6 +517,7 @@ SETDK1  EQU     *
         DB      'SET DK1',8AH
         MVI     A,1
         STA     AIO.UNI
+        CALL    SEEK0
         POP     PSW
         CALL    CHROUT
         JMP     BEGLP
@@ -583,10 +605,17 @@ QUERY   EQU     *
         CALL    CHROUT
         MOV     A,H             RDCNT HIGH BYTE
         CALL    CHROUT
+        LDA     DENS            DENSITY CON.MFM OR 0
+        CALL    CHROUT
         JMP     BEGLP
 *
 QUERY1  EQU     *
+        XRA     A
+        STA     SPERT
+        MVI     A,CON.MFM       TEST MFM FIRST
+        STA     DENS
         CALL    SELDRV
+QUERYL  EQU     *
         MVI     A,2
         STA     NUMSID          DOUBLE SIDED DEFAULT
         DCR     A
@@ -597,11 +626,19 @@ QUERY1  EQU     *
         XRA     A
         STA     SIDE
         POP     PSW
-        JNC     QUERYS
+        JNC     QUERYS          GOOD DOUBLE SIDE READ
         MVI     A,1
         STA     NUMSID          SINGLE SIDED DISK
         LXI     B,0100H
         CALL    READS           READ A TRACK FILL SPERT+RDCNT
+        JNC     QUERYS          GOOD SINGLE SIDE READ
+        LDA     DENS
+        CPI     CON.MFM
+        JNZ     QUERY3          FAILED MFM AND FM
+        CALL    $TYPTX
+        DB      'CHECKING SINGLE DENSITY',8AH
+        CALL    CHGDENS         MIGHT BE FM
+        JMP     QUERYL
 QUERYS  EQU     *
         CALL    H37CMD
         LXI     H,QUERY3
@@ -631,6 +668,22 @@ QUERY3  EQU     *
         OUT     DK.CON
         POP     PSW
         RET
+* SET 9600 BAUD
+B9600   EQU     *
+        CALL    $TYPTX
+        DB      'SET 9600 BAUD',8AH
+        MVI     A,0CH
+        STA     BAUDIV
+        CALL    SINT
+        JMP     BEGLP
+* SET 19200 BAUD
+B19200  EQU     *
+        CALL    $TYPTX
+        DB      'SET 19200 BAUD',8AH
+        MVI     A,06H
+        STA     BAUDIV
+        CALL    SINT
+        JMP     BEGLP
 *
 QUIT    EQU     *
         CALL    $TYPTX
@@ -647,6 +700,7 @@ CURTRK  DB      0               0-79
 CURSEC  DB      0               1-16
 SIDE    DB      0               0 OR 1
 CONCMD  DB      0               LAST COMMAND SENT TO DK.CON
+DENS    DB      CON.MFM
 *
 SPERT   DB      0               SECTORS PER TRACK
 RDCNT   DW      0               BYTES READ
