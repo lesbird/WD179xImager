@@ -2,7 +2,7 @@
 * H37IMGR
 *
 * 2021.09.30 LES BIRD
-* SHOULD ALSO WORK FOR PC/Z100 5.25 DISKS (WD179X)
+* ALSO WORKS FOR PC/Z100 5.25 DISKS (WD179X)
 *
         XTEXT   HOSEQU
         XTEXT   HOSDEF
@@ -15,7 +15,7 @@ BAUD19  EQU     06H             19,200 BAUD
 BAUD38  EQU     03H             38,400 BAUD
 BAUD56  EQU     02H             56,000 BAUD
 *
-BAUDIV  EQU     0CH             9600 BAUD IS DEFAULT
+BAUDIV  EQU     03H             19200 BAUD IS DEFAULT
 *
 DLY     EQU     53A
 UIVEC   EQU     40037A          USER INTERRUPT VECTOR
@@ -407,6 +407,8 @@ BEGLP1  EQU     *
         JZ      SETDK0
         CPI     '1'
         JZ      SETDK1
+        CPI     '3'             IDENTIFY AS H37IMGR
+        JZ      ISH37
         CPI     '4'
         JZ      SET1S4
         CPI     '5'
@@ -520,6 +522,12 @@ SETDK1  EQU     *
         CALL    SEEK0
         POP     PSW
         CALL    CHROUT
+        JMP     BEGLP
+* H37 IMAGER IDENTIFIER
+ISH37   EQU     *
+        CALL    CHROUT
+        CALL    $TYPTX
+        DB      'IDENTIFY AS H37IMGR',8AH
         JMP     BEGLP
 * SET DRIVE PARAMETERS (SIDES,TRACKS)
 SETPAR  EQU     *
@@ -716,3 +724,4 @@ NUMSID  DB      0               NUM SIDES (1 OR 2)
 SECBUF  DS      8192            MAX FULL TRACK
 *
         END     START
+>

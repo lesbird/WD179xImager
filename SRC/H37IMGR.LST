@@ -5,7 +5,7 @@
                         00002   * H37IMGR
                         00003   *
                         00004   * 2021.09.30 LES BIRD
-                        00005   * SHOULD ALSO WORK FOR PC/Z100 5.25 DISKS (WD179X)
+                        00005   * ALSO WORKS FOR PC/Z100 5.25 DISKS (WD179X)
                         00006   *
    042.200              00007           XTEXT   HOSEQU
    042.200              00035           XTEXT   HOSDEF
@@ -18,7 +18,7 @@
    000.003              00220   BAUD38  EQU     03H             38,400 BAUD
    000.002              00221   BAUD56  EQU     02H             56,000 BAUD
                         00222   *
-   000.014              00223   BAUDIV  EQU     0CH             9600 BAUD IS DEFAULT
+   000.003              00223   BAUDIV  EQU     03H             19200 BAUD IS DEFAULT
                         00224   *
    000.053              00225   DLY     EQU     53A
    040.037              00226   UIVEC   EQU     40037A          USER INTERRUPT VECTOR
@@ -45,14 +45,14 @@
                         00247   *
    042.200              00248   START   EQU     *
    042.200  021 000 040 00249           LXI     D,BUFSIZ
-   042.203  041 050 050 00250           LXI     H,SECBUF
+   042.203  041 112 050 00250           LXI     H,SECBUF
    042.206  315 341 042 00251           CALL    ZEROMEM
                         00252   * DISMOUNT ALL DRIVES
-   042.211  041 017 050 00253           LXI     H,DEV1
+   042.211  041 061 050 00253           LXI     H,DEV1
    042.214  377 203     00254           SCALL   .DMNMS
-   042.216  041 024 050 00255           LXI     H,DEV2
+   042.216  041 066 050 00255           LXI     H,DEV2
    042.221  377 203     00256           SCALL   .DMNMS
-   042.223  041 031 050 00257           LXI     H,DEV3
+   042.223  041 073 050 00257           LXI     H,DEV3
    042.226  377 203     00258           SCALL   .DMNMS
                         00259   *
    042.230  315 236 042 00260           CALL    SINT
@@ -82,7 +82,7 @@
    042.243  323 344     00271           OUT     MCNTL4
    042.245  075         00272           DCR     A
    042.246  323 343     00273           OUT     LCNTL4
-   042.250  076 014     00274           MVI     A,BAUDIV
+   042.250  076 003     00274           MVI     A,BAUDIV
    042.252  323 340     00275           OUT     DVL4
    042.254  257         00276           XRA     A
    042.255  323 341     00277           OUT     DVH4
@@ -224,24 +224,24 @@
    043.064  315 030 043 00387           CALL    UNIBITS         A=DRIVE BIT
    043.067  366 011     00388           ORI     CON.MO+CON.EI
    043.071  117         00389           MOV     C,A
-   043.072  072 042 050 00390           LDA     DENS            CON.MFM OR 0
+   043.072  072 104 050 00390           LDA     DENS            CON.MFM OR 0
    043.075  261         00391           ORA     C
-   043.076  062 041 050 00392           STA     CONCMD          DS0+CON.MO+CON.EI+CON.MFM
+   043.076  062 103 050 00392           STA     CONCMD          DS0+CON.MO+CON.EI+CON.MFM
    043.101  323 170     00393           OUT     DK.CON
    043.103  311         00394           RET
                         00395   *
    043.104              00396   SETMFM  EQU     *
    043.104  076 004     00397           MVI     A,CON.MFM
-   043.106  062 042 050 00398           STA     DENS
+   043.106  062 104 050 00398           STA     DENS
    043.111  303 064 043 00399           JMP     SETDENS
                         00400   *
    043.114              00401   SETFM   EQU     *
    043.114  076 000     00402           MVI     A,0
-   043.116  062 042 050 00403           STA     DENS
+   043.116  062 104 050 00403           STA     DENS
    043.121  303 064 043 00404           JMP     SETDENS
                         00405   * SWITCH DENSITY FM<->MFM
    043.124              00406   CHGDENS EQU     *
-   043.124  072 042 050 00407           LDA     DENS
+   043.124  072 104 050 00407           LDA     DENS
    043.127  376 004     00408           CPI     CON.MFM
    043.131  312 114 043 00409           JZ      SETFM
    043.134  303 104 043 00410           JMP     SETMFM
@@ -299,9 +299,9 @@
    043.221  323 172     00449           OUT     FD.CMD
    043.223  303 203 043 00450           JMP     WAITINT
    043.226              00451   STPI2   EQU     *
-   043.226  072 036 050 00452           LDA     CURTRK
+   043.226  072 100 050 00452           LDA     CURTRK
    043.231  074         00453           INR     A
-   043.232  062 036 050 00454           STA     CURTRK
+   043.232  062 100 050 00454           STA     CURTRK
    043.235  271         00455           CMP     C
    043.236  302 217 043 00456           JNZ     STPI1
    043.241  315 151 043 00457           CALL    DLY40
@@ -309,7 +309,7 @@
                         00459   * C=TRACK
    043.245              00460   STPOUT  EQU     *
    043.245  315 043 043 00461           CALL    SELDRV
-   043.250  072 036 050 00462           LDA     CURTRK
+   043.250  072 100 050 00462           LDA     CURTRK
    043.253  267         00463           ORA     A
    043.254  312 313 043 00464           JZ      SEEK0
    043.257  041 274 043 00465           LXI     H,STPO2
@@ -319,9 +319,9 @@
    043.267  323 172     00469           OUT     FD.CMD
    043.271  303 203 043 00470           JMP     WAITINT
    043.274              00471   STPO2   EQU     *
-   043.274  072 036 050 00472           LDA     CURTRK
+   043.274  072 100 050 00472           LDA     CURTRK
    043.277  075         00473           DCR     A
-   043.300  062 036 050 00474           STA     CURTRK
+   043.300  062 100 050 00474           STA     CURTRK
    043.303  271         00475           CMP     C
    043.304  302 265 043 00476           JNZ     STPO1
    043.307  315 151 043 00477           CALL    DLY40
@@ -330,7 +330,7 @@
    043.313              00480   SEEK0   EQU     *
    043.313  315 043 043 00481           CALL    SELDRV
    043.316  257         00482           XRA     A
-   043.317  062 036 050 00483           STA     CURTRK
+   043.317  062 100 050 00483           STA     CURTRK
    043.322  041 337 043 00484           LXI     H,SEEKD
    043.325  042 067 040 00485           SHLD    BLKICW
    043.330  076 002     00486           MVI     A,FDC.RST+FDF.S20
@@ -377,7 +377,7 @@
    044.007  315 360 042 00514           CALL    H37TRK
    044.012  171         00515           MOV     A,C
    044.013  323 173     00516           OUT     FD.TRK          SET TRACK REGISTER
-   044.015  072 036 050 00517           LDA     CURTRK
+   044.015  072 100 050 00517           LDA     CURTRK
    044.020  221         00518           SUB     C
    044.021  310         00519           RZ                      ALREADY AT TRK C
    044.022  332 206 043 00520           JC      STPIN
@@ -388,7 +388,7 @@
    044.033  041 076 044 00525           LXI     H,READL2        RETURN ADDRESS
    044.036  042 067 040 00526           SHLD    BLKICW
    044.041  315 353 042 00527           CALL    H37CMD
-   044.044  072 041 050 00528           LDA     CONCMD
+   044.044  072 103 050 00528           LDA     CONCMD
    044.047  366 002     00529           ORI     CON.DRQ
    044.051  323 170     00530           OUT     DK.CON
                         00531   * RDS=READ SECTOR
@@ -397,7 +397,7 @@
                         00534   * SLF=SECTOR LEN SHIFT (128,256,512,1024)
                         00535   * SS1=SIDE 1 FLAG
    044.053  257         00536           XRA     A
-   044.054  072 040 050 00537           LDA     SIDE            0=SIDE 1,1=SIDE 2
+   044.054  072 102 050 00537           LDA     SIDE            0=SIDE 1,1=SIDE 2
    044.057  027         00538           RAL                     IF A=1 THEN RAL=FDF.SS1
    044.060  366 234     00539           ORI     FDC.RDS+FDF.DLF+FDF.MRF+FDF.SLF
    044.062  323 172     00540           OUT     FD.CMD
@@ -427,11 +427,11 @@
    044.100  323 170     00551           OUT     DK.CON
    044.102  151         00552           MOV     L,C
    044.103  140         00553           MOV     H,B
-   044.104  042 044 050 00554           SHLD    RDCNT
+   044.104  042 106 050 00554           SHLD    RDCNT
    044.107  315 360 042 00555           CALL    H37TRK
    044.112  333 172     00556           IN      FD.SEC
    044.114  075         00557           DCR     A
-   044.115  062 043 050 00558           STA     SPERT
+   044.115  062 105 050 00558           STA     SPERT
    044.120  267         00559           ORA     A               SECTORS PER TRACK == 0?
    044.121  300         00560           RNZ                     NO ERRORS
    044.122  067         00561           STC                     ERROR, SET CARRY FLAG
@@ -442,7 +442,7 @@
    044.127  170         00566           MOV     A,B
    044.130  323 172     00567           OUT     FD.SEC          SET SECTOR REGISTER
    044.132  315 007 044 00568           CALL    SEEKTO
-   044.135  021 050 050 00569           LXI     D,SECBUF
+   044.135  021 112 050 00569           LXI     D,SECBUF
    044.140  303 030 044 00570           JMP     READLP
                         00571   *
                         00572   * IMAGER COMMANDS
@@ -469,9 +469,9 @@
    044.374  257         00593           XRA     A               SET DRIVE UNIT TO 0
    044.375  062 061 041 00594           STA     AIO.UNI
    045.000  074         00595           INR     A
-   045.001  062 047 050 00596           STA     NUMSID          SINGLE SIDE IS DEFAULT
+   045.001  062 111 050 00596           STA     NUMSID          SINGLE SIDE IS DEFAULT
    045.004  076 050     00597           MVI     A,40
-   045.006  062 046 050 00598           STA     NUMTRK          40 TRACK IS DEFAULT
+   045.006  062 110 050 00598           STA     NUMTRK          40 TRACK IS DEFAULT
    045.011  315 043 043 00599           CALL    SELDRV
    045.014  315 313 043 00600           CALL    SEEK0           SEEK TRACK 0
    045.017              00601   BEGLP   EQU     *
@@ -494,60 +494,60 @@
    045.052              00605   BEGLP1  EQU     *
    045.052  315 306 042 00606           CALL    CHRIN           WAIT FOR COMMAND FROM LP PORT
    045.055  376 122     00607           CPI     'R'             READ DISK IMAGE
-   045.057  312 154 045 00608           JZ      CMDRDI
+   045.057  312 161 045 00608           JZ      CMDRDI
    045.062  376 127     00609           CPI     'W'
-   045.064  312 005 046 00610           JZ      CMDWDI
+   045.064  312 012 046 00610           JZ      CMDWDI
    045.067  376 060     00611           CPI     '0'
-   045.071  312 006 046 00612           JZ      SETDK0
+   045.071  312 013 046 00612           JZ      SETDK0
    045.074  376 061     00613           CPI     '1'
-   045.076  312 040 046 00614           JZ      SETDK1
-   045.101  376 064     00615           CPI     '4'
-   045.103  312 104 046 00616           JZ      SET1S4
-   045.106  376 065     00617           CPI     '5'
-   045.110  312 151 046 00618           JZ      SET2S4
-   045.113  376 066     00619           CPI     '6'
-   045.115  312 216 046 00620           JZ      SET1S8
-   045.120  376 067     00621           CPI     '7'
-   045.122  312 264 046 00622           JZ      SET2S8
-   045.125  376 121     00623           CPI     'Q'
-   045.127  312 332 046 00624           JZ      QUERY
-   045.132  376 071     00625           CPI     '9'
-   045.134  312 304 047 00626           JZ      B9600
-   045.137  376 050     00627           CPI     '('
-   045.141  312 340 047 00628           JZ      B19200
-   045.144  076 077     00629           MVI     A,'?'
-   045.146  315 270 042 00630           CALL    CHROUT
-   045.151  303 052 045 00631           JMP     BEGLP1
-                        00632   * CMD READ DISK IMAGE
-   045.154              00633   CMDRDI  EQU     *
-   045.154  315 136 031 00634           CALL    $TYPTX
-   045.157  122 105 101 00635           DB      'READ DISK IMAGE',8AH
-   045.177  315 043 043 00636           CALL    SELDRV
-   045.202  257         00637           XRA     A
-   045.203  062 040 050 00638           STA     SIDE            INITIALIZE SIDE
-   045.206  001 000 001 00639           LXI     B,0100H         START SECTOR 1, TRACK 0
-   045.211              00640   CMDRD1  EQU     *
-   045.211  315 306 042 00641           CALL    CHRIN           WAIT FOR REQUEST
-   045.214  376 122     00642           CPI     'R'
-   045.216  302 017 045 00643           JNZ     BEGLP           NOT 'R' SO PROBABLY ABORT
-   045.221  305         00644           PUSH    B
-   045.222  076 122     00645           MVI     A,'R'
-   045.224  315 323 042 00646           CALL    OUT350
-                        00647   *
-   045.227  315 124 044 00648           CALL    READS           READ TRACK
+   045.076  312 045 046 00614           JZ      SETDK1
+   045.101  376 063     00615           CPI     '3'             IDENTIFY AS H37IMGR
+   045.103  312 100 046 00616           JZ      ISH37
+   045.106  376 064     00617           CPI     '4'
+   045.110  312 146 046 00618           JZ      SET1S4
+   045.113  376 065     00619           CPI     '5'
+   045.115  312 213 046 00620           JZ      SET2S4
+   045.120  376 066     00621           CPI     '6'
+   045.122  312 260 046 00622           JZ      SET1S8
+   045.125  376 067     00623           CPI     '7'
+   045.127  312 326 046 00624           JZ      SET2S8
+   045.132  376 121     00625           CPI     'Q'
+   045.134  312 374 046 00626           JZ      QUERY
+   045.137  376 071     00627           CPI     '9'
+   045.141  312 346 047 00628           JZ      B9600
+   045.144  376 050     00629           CPI     '('
+   045.146  312 002 050 00630           JZ      B19200
+   045.151  076 077     00631           MVI     A,'?'
+   045.153  315 270 042 00632           CALL    CHROUT
+   045.156  303 052 045 00633           JMP     BEGLP1
+                        00634   * CMD READ DISK IMAGE
+   045.161              00635   CMDRDI  EQU     *
+   045.161  315 136 031 00636           CALL    $TYPTX
+   045.164  122 105 101 00637           DB      'READ DISK IMAGE',8AH
+   045.204  315 043 043 00638           CALL    SELDRV
+   045.207  257         00639           XRA     A
+   045.210  062 102 050 00640           STA     SIDE            INITIALIZE SIDE
+   045.213  001 000 001 00641           LXI     B,0100H         START SECTOR 1, TRACK 0
+   045.216              00642   CMDRD1  EQU     *
+   045.216  315 306 042 00643           CALL    CHRIN           WAIT FOR REQUEST
+   045.221  376 122     00644           CPI     'R'
+   045.223  302 017 045 00645           JNZ     BEGLP           NOT 'R' SO PROBABLY ABORT
+   045.226  305         00646           PUSH    B
+   045.227  076 122     00647           MVI     A,'R'
+   045.231  315 323 042 00648           CALL    OUT350
                         00649   *
-   045.232  076 010     00650           MVI     A,08H
-   045.234  315 323 042 00651           CALL    OUT350
-   045.237  076 123     00652           MVI     A,'S'
-   045.241  315 323 042 00653           CALL    OUT350          SHOW SENDING BUFFER
-                        00654   *
-   045.244  315 340 045 00655           CALL    SENDT           SEND TRACK BUFFER
+   045.234  315 124 044 00650           CALL    READS           READ TRACK
+                        00651   *
+   045.237  076 010     00652           MVI     A,08H
+   045.241  315 323 042 00653           CALL    OUT350
+   045.244  076 123     00654           MVI     A,'S'
+   045.246  315 323 042 00655           CALL    OUT350          SHOW SENDING BUFFER
                         00656   *
-   045.247  076 010     00657           MVI     A,08H
-   045.251  315 323 042 00658           CALL    OUT350
-   045.254  076 052     00659           MVI     A,'*'
-   045.256  315 323 042 00660           CALL    OUT350          SHOW TRACK SENT
-   045.261  301         00661           POP     B               GET SEC,TRK
+   045.251  315 345 045 00657           CALL    SENDT           SEND TRACK BUFFER
+                        00658   *
+   045.254  076 010     00659           MVI     A,08H
+   045.256  315 323 042 00660           CALL    OUT350
+   045.261  076 052     00661           MVI     A,'*'
 
 
 
@@ -561,63 +561,63 @@
                                                         HEATH ASM #104.06.00
                                                         01-Jan-77  Page    9
 
-   045.262  072 047 050 00662           LDA     NUMSID          1 OR 2
-   045.265  075         00663           DCR     A
-   045.266  312 307 045 00664           JZ      CMDRD2          SINGLE SIDED
-   045.271  072 040 050 00665           LDA     SIDE            0 OR 1
-   045.274  267         00666           ORA     A
-   045.275  302 307 045 00667           JNZ     CMDRD2          FINISHED SIDE 2
-   045.300  074         00668           INR     A
-   045.301  062 040 050 00669           STA     SIDE
-   045.304  303 211 045 00670           JMP     CMDRD1          READ SIDE 2
-   045.307              00671   CMDRD2  EQU     *
-   045.307  257         00672           XRA     A
-   045.310  062 040 050 00673           STA     SIDE            SET SIDE 1
-   045.313  014         00674           INR     C
-   045.314  072 046 050 00675           LDA     NUMTRK
-   045.317  271         00676           CMP     C
-   045.320  302 211 045 00677           JNZ     CMDRD1
-   045.323  076 015     00678           MVI     A,0DH
-   045.325  315 323 042 00679           CALL    OUT350
-   045.330  076 012     00680           MVI     A,0AH
+   045.263  315 323 042 00662           CALL    OUT350          SHOW TRACK SENT
+   045.266  301         00663           POP     B               GET SEC,TRK
+   045.267  072 111 050 00664           LDA     NUMSID          1 OR 2
+   045.272  075         00665           DCR     A
+   045.273  312 314 045 00666           JZ      CMDRD2          SINGLE SIDED
+   045.276  072 102 050 00667           LDA     SIDE            0 OR 1
+   045.301  267         00668           ORA     A
+   045.302  302 314 045 00669           JNZ     CMDRD2          FINISHED SIDE 2
+   045.305  074         00670           INR     A
+   045.306  062 102 050 00671           STA     SIDE
+   045.311  303 216 045 00672           JMP     CMDRD1          READ SIDE 2
+   045.314              00673   CMDRD2  EQU     *
+   045.314  257         00674           XRA     A
+   045.315  062 102 050 00675           STA     SIDE            SET SIDE 1
+   045.320  014         00676           INR     C
+   045.321  072 110 050 00677           LDA     NUMTRK
+   045.324  271         00678           CMP     C
+   045.325  302 216 045 00679           JNZ     CMDRD1
+   045.330  076 015     00680           MVI     A,0DH
    045.332  315 323 042 00681           CALL    OUT350
-   045.335  303 017 045 00682           JMP     BEGLP
-                        00683   * SEND TRACK DATA TO 340Q
-   045.340              00684   SENDT   EQU     *
-   045.340  052 044 050 00685           LHLD    RDCNT
-   045.343  175         00686           MOV     A,L
-   045.344  315 270 042 00687           CALL    CHROUT
-   045.347  174         00688           MOV     A,H
-   045.350  315 270 042 00689           CALL    CHROUT
-   045.353  072 043 050 00690           LDA     SPERT
-   045.356  315 270 042 00691           CALL    CHROUT
-   045.361  021 050 050 00692           LXI     D,SECBUF
-   045.364              00693   SENDT1  EQU     *
-   045.364  032         00694           LDAX    D
-   045.365  315 270 042 00695           CALL    CHROUT
-   045.370  023         00696           INX     D
-   045.371  053         00697           DCX     H
-   045.372  175         00698           MOV     A,L
-   045.373  264         00699           ORA     H
-   045.374  302 364 045 00700           JNZ     SENDT1
-   045.377  076 122     00701           MVI     A,'R'
-   046.001  315 270 042 00702           CALL    CHROUT          HANDSHAKE
-   046.004  311         00703           RET
-                        00704   * COMMAND WRITE DISK IMAGE
-   046.005              00705   CMDWDI  EQU     *
-   046.005  311         00706           RET
-                        00707   * COMMAND SET DRIVE 0
-   046.006              00708   SETDK0  EQU     *
-   046.006  365         00709           PUSH    PSW
-   046.007  315 136 031 00710           CALL    $TYPTX
-   046.012  123 105 124 00711           DB      'SET DK0',8AH
-   046.022  257         00712           XRA     A
-   046.023  062 061 041 00713           STA     AIO.UNI
-   046.026  315 313 043 00714           CALL    SEEK0
-   046.031  361         00715           POP     PSW
-   046.032  315 270 042 00716           CALL    CHROUT          HANDSHAKE
-   046.035  303 017 045 00717           JMP     BEGLP
-                        00718   * COMMAND SET DRIVE 1
+   045.335  076 012     00682           MVI     A,0AH
+   045.337  315 323 042 00683           CALL    OUT350
+   045.342  303 017 045 00684           JMP     BEGLP
+                        00685   * SEND TRACK DATA TO 340Q
+   045.345              00686   SENDT   EQU     *
+   045.345  052 106 050 00687           LHLD    RDCNT
+   045.350  175         00688           MOV     A,L
+   045.351  315 270 042 00689           CALL    CHROUT
+   045.354  174         00690           MOV     A,H
+   045.355  315 270 042 00691           CALL    CHROUT
+   045.360  072 105 050 00692           LDA     SPERT
+   045.363  315 270 042 00693           CALL    CHROUT
+   045.366  021 112 050 00694           LXI     D,SECBUF
+   045.371              00695   SENDT1  EQU     *
+   045.371  032         00696           LDAX    D
+   045.372  315 270 042 00697           CALL    CHROUT
+   045.375  023         00698           INX     D
+   045.376  053         00699           DCX     H
+   045.377  175         00700           MOV     A,L
+   046.000  264         00701           ORA     H
+   046.001  302 371 045 00702           JNZ     SENDT1
+   046.004  076 122     00703           MVI     A,'R'
+   046.006  315 270 042 00704           CALL    CHROUT          HANDSHAKE
+   046.011  311         00705           RET
+                        00706   * COMMAND WRITE DISK IMAGE
+   046.012              00707   CMDWDI  EQU     *
+   046.012  311         00708           RET
+                        00709   * COMMAND SET DRIVE 0
+   046.013              00710   SETDK0  EQU     *
+   046.013  365         00711           PUSH    PSW
+   046.014  315 136 031 00712           CALL    $TYPTX
+   046.017  123 105 124 00713           DB      'SET DK0',8AH
+   046.027  257         00714           XRA     A
+   046.030  062 061 041 00715           STA     AIO.UNI
+   046.033  315 313 043 00716           CALL    SEEK0
+   046.036  361         00717           POP     PSW
+   046.037  315 270 042 00718           CALL    CHROUT          HANDSHAKE
 
 
 
@@ -631,63 +631,63 @@
                                                         HEATH ASM #104.06.00
                                                         01-Jan-77  Page   10
 
-   046.040              00719   SETDK1  EQU     *
-   046.040  365         00720           PUSH    PSW
-   046.041  315 136 031 00721           CALL    $TYPTX
-   046.044  123 105 124 00722           DB      'SET DK1',8AH
-   046.054  076 001     00723           MVI     A,1
-   046.056  062 061 041 00724           STA     AIO.UNI
-   046.061  315 313 043 00725           CALL    SEEK0
-   046.064  361         00726           POP     PSW
-   046.065  315 270 042 00727           CALL    CHROUT
-   046.070  303 017 045 00728           JMP     BEGLP
-                        00729   * SET DRIVE PARAMETERS (SIDES,TRACKS)
-   046.073              00730   SETPAR  EQU     *
-   046.073  170         00731           MOV     A,B
-   046.074  062 047 050 00732           STA     NUMSID
-   046.077  171         00733           MOV     A,C
-   046.100  062 046 050 00734           STA     NUMTRK
-   046.103  311         00735           RET
-                        00736   * COMMAND SET SS 40 TRACK
-   046.104              00737   SET1S4  EQU     *
-   046.104  365         00738           PUSH    PSW
-   046.105  315 136 031 00739           CALL    $TYPTX
-   046.110  123 105 124 00740           DB      'SET SS 40 TRACK',8AH
-   046.130  001 050 001 00741           LXI     B,0128H
-   046.133  315 073 046 00742           CALL    SETPAR
-   046.136  257         00743           XRA     A
-   046.137  062 061 041 00744           STA     AIO.UNI
-   046.142  361         00745           POP     PSW
-   046.143  315 270 042 00746           CALL    CHROUT
-   046.146  303 017 045 00747           JMP     BEGLP
-                        00748   * COMMAND SET DS 40 TRACK
-   046.151              00749   SET2S4  EQU     *
-   046.151  365         00750           PUSH    PSW
-   046.152  315 136 031 00751           CALL    $TYPTX
-   046.155  123 105 124 00752           DB      'SET DS 40 TRACK',8AH
-   046.175  001 050 002 00753           LXI     B,0228H
-   046.200  315 073 046 00754           CALL    SETPAR
-   046.203  257         00755           XRA     A
-   046.204  062 061 041 00756           STA     AIO.UNI
-   046.207  361         00757           POP     PSW
-   046.210  315 270 042 00758           CALL    CHROUT
-   046.213  303 017 045 00759           JMP     BEGLP
-                        00760   * COMMAND SET SS 80 TRACK
-   046.216              00761   SET1S8  EQU     *
-   046.216  365         00762           PUSH    PSW
-   046.217  315 136 031 00763           CALL    $TYPTX
-   046.222  123 105 124 00764           DB      'SET SS 80 TRACK',8AH
-   046.242  001 120 001 00765           LXI     B,0150H
-   046.245  315 073 046 00766           CALL    SETPAR
-   046.250  076 001     00767           MVI     A,1
-   046.252  062 061 041 00768           STA     AIO.UNI
-   046.255  361         00769           POP     PSW
-   046.256  315 270 042 00770           CALL    CHROUT
-   046.261  303 017 045 00771           JMP     BEGLP
-                        00772   * COMMAND SET DS 80 TRACK
-   046.264              00773   SET2S8  EQU     *
-   046.264  365         00774           PUSH    PSW
-   046.265  315 136 031 00775           CALL    $TYPTX
+   046.042  303 017 045 00719           JMP     BEGLP
+                        00720   * COMMAND SET DRIVE 1
+   046.045              00721   SETDK1  EQU     *
+   046.045  365         00722           PUSH    PSW
+   046.046  315 136 031 00723           CALL    $TYPTX
+   046.051  123 105 124 00724           DB      'SET DK1',8AH
+   046.061  076 001     00725           MVI     A,1
+   046.063  062 061 041 00726           STA     AIO.UNI
+   046.066  315 313 043 00727           CALL    SEEK0
+   046.071  361         00728           POP     PSW
+   046.072  315 270 042 00729           CALL    CHROUT
+   046.075  303 017 045 00730           JMP     BEGLP
+                        00731   * H37 IMAGER IDENTIFIER
+   046.100              00732   ISH37   EQU     *
+   046.100  315 270 042 00733           CALL    CHROUT
+   046.103  315 136 031 00734           CALL    $TYPTX
+   046.106  111 104 105 00735           DB      'IDENTIFY AS H37IMGR',8AH
+   046.132  303 017 045 00736           JMP     BEGLP
+                        00737   * SET DRIVE PARAMETERS (SIDES,TRACKS)
+   046.135              00738   SETPAR  EQU     *
+   046.135  170         00739           MOV     A,B
+   046.136  062 111 050 00740           STA     NUMSID
+   046.141  171         00741           MOV     A,C
+   046.142  062 110 050 00742           STA     NUMTRK
+   046.145  311         00743           RET
+                        00744   * COMMAND SET SS 40 TRACK
+   046.146              00745   SET1S4  EQU     *
+   046.146  365         00746           PUSH    PSW
+   046.147  315 136 031 00747           CALL    $TYPTX
+   046.152  123 105 124 00748           DB      'SET SS 40 TRACK',8AH
+   046.172  001 050 001 00749           LXI     B,0128H
+   046.175  315 135 046 00750           CALL    SETPAR
+   046.200  257         00751           XRA     A
+   046.201  062 061 041 00752           STA     AIO.UNI
+   046.204  361         00753           POP     PSW
+   046.205  315 270 042 00754           CALL    CHROUT
+   046.210  303 017 045 00755           JMP     BEGLP
+                        00756   * COMMAND SET DS 40 TRACK
+   046.213              00757   SET2S4  EQU     *
+   046.213  365         00758           PUSH    PSW
+   046.214  315 136 031 00759           CALL    $TYPTX
+   046.217  123 105 124 00760           DB      'SET DS 40 TRACK',8AH
+   046.237  001 050 002 00761           LXI     B,0228H
+   046.242  315 135 046 00762           CALL    SETPAR
+   046.245  257         00763           XRA     A
+   046.246  062 061 041 00764           STA     AIO.UNI
+   046.251  361         00765           POP     PSW
+   046.252  315 270 042 00766           CALL    CHROUT
+   046.255  303 017 045 00767           JMP     BEGLP
+                        00768   * COMMAND SET SS 80 TRACK
+   046.260              00769   SET1S8  EQU     *
+   046.260  365         00770           PUSH    PSW
+   046.261  315 136 031 00771           CALL    $TYPTX
+   046.264  123 105 124 00772           DB      'SET SS 80 TRACK',8AH
+   046.304  001 120 001 00773           LXI     B,0150H
+   046.307  315 135 046 00774           CALL    SETPAR
+   046.312  076 001     00775           MVI     A,1
 
 
 
@@ -701,63 +701,63 @@
                                                         HEATH ASM #104.06.00
                                                         01-Jan-77  Page   11
 
-   046.270  123 105 124 00776           DB      'SET DS 80 TRACK',8AH
-   046.310  001 120 002 00777           LXI     B,0250H
-   046.313  315 073 046 00778           CALL    SETPAR
-   046.316  076 001     00779           MVI     A,1
-   046.320  062 061 041 00780           STA     AIO.UNI
-   046.323  361         00781           POP     PSW
-   046.324  315 270 042 00782           CALL    CHROUT
-   046.327  303 017 045 00783           JMP     BEGLP
-                        00784   * COMMAND QUERY DISK TYPE
-   046.332              00785   QUERY   EQU     *
-   046.332  315 270 042 00786           CALL    CHROUT
-   046.335  315 136 031 00787           CALL    $TYPTX
-   046.340  121 125 105 00788           DB      'QUERY DISK TYPE',8AH
-   046.360  315 067 047 00789           CALL    QUERY1
-   046.363  072 043 050 00790           LDA     SPERT           SECTORS PER TRACK
-   046.366  315 270 042 00791           CALL    CHROUT
-                        00792   * READ ADDRESS RESULTS
-   046.371  072 050 050 00793           LDA     SECBUF          TRACK
+   046.314  062 061 041 00776           STA     AIO.UNI
+   046.317  361         00777           POP     PSW
+   046.320  315 270 042 00778           CALL    CHROUT
+   046.323  303 017 045 00779           JMP     BEGLP
+                        00780   * COMMAND SET DS 80 TRACK
+   046.326              00781   SET2S8  EQU     *
+   046.326  365         00782           PUSH    PSW
+   046.327  315 136 031 00783           CALL    $TYPTX
+   046.332  123 105 124 00784           DB      'SET DS 80 TRACK',8AH
+   046.352  001 120 002 00785           LXI     B,0250H
+   046.355  315 135 046 00786           CALL    SETPAR
+   046.360  076 001     00787           MVI     A,1
+   046.362  062 061 041 00788           STA     AIO.UNI
+   046.365  361         00789           POP     PSW
+   046.366  315 270 042 00790           CALL    CHROUT
+   046.371  303 017 045 00791           JMP     BEGLP
+                        00792   * COMMAND QUERY DISK TYPE
+   046.374              00793   QUERY   EQU     *
    046.374  315 270 042 00794           CALL    CHROUT
-   046.377  072 051 050 00795           LDA     SECBUF+1        SIDE
-   047.002  315 270 042 00796           CALL    CHROUT
-   047.005  072 052 050 00797           LDA     SECBUF+2        SECTOR
-   047.010  315 270 042 00798           CALL    CHROUT
-   047.013  072 053 050 00799           LDA     SECBUF+3        SECTOR LENGTH
-   047.016  315 270 042 00800           CALL    CHROUT
-   047.021  072 054 050 00801           LDA     SECBUF+4        CRC 1
-   047.024  315 270 042 00802           CALL    CHROUT
-   047.027  072 055 050 00803           LDA     SECBUF+5        CRC 2
-   047.032  315 270 042 00804           CALL    CHROUT
-                        00805   * DISK PARAMETERS
-   047.035  072 047 050 00806           LDA     NUMSID          NUM SIDES
-   047.040  315 270 042 00807           CALL    CHROUT
-   047.043  052 044 050 00808           LHLD    RDCNT
-   047.046  175         00809           MOV     A,L             RDCNT LOW BYTE
-   047.047  315 270 042 00810           CALL    CHROUT
-   047.052  174         00811           MOV     A,H             RDCNT HIGH BYTE
-   047.053  315 270 042 00812           CALL    CHROUT
-   047.056  072 042 050 00813           LDA     DENS            DENSITY CON.MFM OR 0
-   047.061  315 270 042 00814           CALL    CHROUT
-   047.064  303 017 045 00815           JMP     BEGLP
-                        00816   *
-   047.067              00817   QUERY1  EQU     *
-   047.067  257         00818           XRA     A
-   047.070  062 043 050 00819           STA     SPERT
-   047.073  076 004     00820           MVI     A,CON.MFM       TEST MFM FIRST
-   047.075  062 042 050 00821           STA     DENS
-   047.100  315 043 043 00822           CALL    SELDRV
-   047.103              00823   QUERYL  EQU     *
-   047.103  076 002     00824           MVI     A,2
-   047.105  062 047 050 00825           STA     NUMSID          DOUBLE SIDED DEFAULT
-   047.110  075         00826           DCR     A
-   047.111  062 040 050 00827           STA     SIDE
-   047.114  001 000 001 00828           LXI     B,0100H
-   047.117  315 124 044 00829           CALL    READS           TEST READ SIDE 2
-   047.122  365         00830           PUSH    PSW
-   047.123  257         00831           XRA     A
-   047.124  062 040 050 00832           STA     SIDE
+   046.377  315 136 031 00795           CALL    $TYPTX
+   047.002  121 125 105 00796           DB      'QUERY DISK TYPE',8AH
+   047.022  315 131 047 00797           CALL    QUERY1
+   047.025  072 105 050 00798           LDA     SPERT           SECTORS PER TRACK
+   047.030  315 270 042 00799           CALL    CHROUT
+                        00800   * READ ADDRESS RESULTS
+   047.033  072 112 050 00801           LDA     SECBUF          TRACK
+   047.036  315 270 042 00802           CALL    CHROUT
+   047.041  072 113 050 00803           LDA     SECBUF+1        SIDE
+   047.044  315 270 042 00804           CALL    CHROUT
+   047.047  072 114 050 00805           LDA     SECBUF+2        SECTOR
+   047.052  315 270 042 00806           CALL    CHROUT
+   047.055  072 115 050 00807           LDA     SECBUF+3        SECTOR LENGTH
+   047.060  315 270 042 00808           CALL    CHROUT
+   047.063  072 116 050 00809           LDA     SECBUF+4        CRC 1
+   047.066  315 270 042 00810           CALL    CHROUT
+   047.071  072 117 050 00811           LDA     SECBUF+5        CRC 2
+   047.074  315 270 042 00812           CALL    CHROUT
+                        00813   * DISK PARAMETERS
+   047.077  072 111 050 00814           LDA     NUMSID          NUM SIDES
+   047.102  315 270 042 00815           CALL    CHROUT
+   047.105  052 106 050 00816           LHLD    RDCNT
+   047.110  175         00817           MOV     A,L             RDCNT LOW BYTE
+   047.111  315 270 042 00818           CALL    CHROUT
+   047.114  174         00819           MOV     A,H             RDCNT HIGH BYTE
+   047.115  315 270 042 00820           CALL    CHROUT
+   047.120  072 104 050 00821           LDA     DENS            DENSITY CON.MFM OR 0
+   047.123  315 270 042 00822           CALL    CHROUT
+   047.126  303 017 045 00823           JMP     BEGLP
+                        00824   *
+   047.131              00825   QUERY1  EQU     *
+   047.131  257         00826           XRA     A
+   047.132  062 105 050 00827           STA     SPERT
+   047.135  076 004     00828           MVI     A,CON.MFM       TEST MFM FIRST
+   047.137  062 104 050 00829           STA     DENS
+   047.142  315 043 043 00830           CALL    SELDRV
+   047.145              00831   QUERYL  EQU     *
+   047.145  076 002     00832           MVI     A,2
 
 
 
@@ -771,63 +771,63 @@
                                                         HEATH ASM #104.06.00
                                                         01-Jan-77  Page   12
 
-   047.127  361         00833           POP     PSW
-   047.130  322 222 047 00834           JNC     QUERYS          GOOD DOUBLE SIDE READ
-   047.133  076 001     00835           MVI     A,1
-   047.135  062 047 050 00836           STA     NUMSID          SINGLE SIDED DISK
-   047.140  001 000 001 00837           LXI     B,0100H
-   047.143  315 124 044 00838           CALL    READS           READ A TRACK FILL SPERT+RDCNT
-   047.146  322 222 047 00839           JNC     QUERYS          GOOD SINGLE SIDE READ
-   047.151  072 042 050 00840           LDA     DENS
-   047.154  376 004     00841           CPI     CON.MFM
-   047.156  302 267 047 00842           JNZ     QUERY3          FAILED MFM AND FM
-   047.161  315 136 031 00843           CALL    $TYPTX
-   047.164  103 110 105 00844           DB      'CHECKING SINGLE DENSITY',8AH
-   047.214  315 124 043 00845           CALL    CHGDENS         MIGHT BE FM
-   047.217  303 103 047 00846           JMP     QUERYL
-   047.222              00847   QUERYS  EQU     *
-   047.222  315 353 042 00848           CALL    H37CMD
-   047.225  041 267 047 00849           LXI     H,QUERY3
-   047.230  042 067 040 00850           SHLD    BLKICW
-   047.233  072 041 050 00851           LDA     CONCMD
-   047.236  366 002     00852           ORI     CON.DRQ
-   047.240  323 170     00853           OUT     DK.CON
-   047.242  001 000 000 00854           LXI     B,0
-   047.245  021 050 050 00855           LXI     D,SECBUF
-   047.250  041 260 047 00856           LXI     H,QUERY2
-   047.253  257         00857           XRA     A
-   047.254  366 304     00858           ORI     FDC.RDA+FDF.DLF
-   047.256  323 172     00859           OUT     FD.CMD
-   047.260              00860   QUERY2  EQU     *               LOOP UNTIL IRQ4
-   047.260  166         00861           HLT                     WAIT FOR DRQ
-   047.261  333 173     00862           IN      FD.DAT
-   047.263  022         00863           STAX    D
-   047.264  023         00864           INX     D
-   047.265  003         00865           INX     B
-   047.266  351         00866           PCHL
-   047.267              00867   QUERY3  EQU     *
-   047.267  365         00868           PUSH    PSW
-   047.270  076 320     00869           MVI     A,FDC.FI
-   047.272  323 172     00870           OUT     FD.CMD
-   047.274  333 173     00871           IN      FD.DAT
-   047.276  076 010     00872           MVI     A,CON.MO
-   047.300  323 170     00873           OUT     DK.CON
-   047.302  361         00874           POP     PSW
-   047.303  311         00875           RET
-                        00876   * SET 9600 BAUD
-   047.304              00877   B9600   EQU     *
-   047.304  315 136 031 00878           CALL    $TYPTX
-   047.307  123 105 124 00879           DB      'SET 9600 BAUD',8AH
-   047.325  076 014     00880           MVI     A,0CH
-   047.327  062 014 000 00881           STA     BAUDIV
-   047.332  315 236 042 00882           CALL    SINT
-   047.335  303 017 045 00883           JMP     BEGLP
-                        00884   * SET 19200 BAUD
-   047.340              00885   B19200  EQU     *
-   047.340  315 136 031 00886           CALL    $TYPTX
-   047.343  123 105 124 00887           DB      'SET 19200 BAUD',8AH
-   047.362  076 006     00888           MVI     A,06H
-   047.364  062 014 000 00889           STA     BAUDIV
+   047.147  062 111 050 00833           STA     NUMSID          DOUBLE SIDED DEFAULT
+   047.152  075         00834           DCR     A
+   047.153  062 102 050 00835           STA     SIDE
+   047.156  001 000 001 00836           LXI     B,0100H
+   047.161  315 124 044 00837           CALL    READS           TEST READ SIDE 2
+   047.164  365         00838           PUSH    PSW
+   047.165  257         00839           XRA     A
+   047.166  062 102 050 00840           STA     SIDE
+   047.171  361         00841           POP     PSW
+   047.172  322 264 047 00842           JNC     QUERYS          GOOD DOUBLE SIDE READ
+   047.175  076 001     00843           MVI     A,1
+   047.177  062 111 050 00844           STA     NUMSID          SINGLE SIDED DISK
+   047.202  001 000 001 00845           LXI     B,0100H
+   047.205  315 124 044 00846           CALL    READS           READ A TRACK FILL SPERT+RDCNT
+   047.210  322 264 047 00847           JNC     QUERYS          GOOD SINGLE SIDE READ
+   047.213  072 104 050 00848           LDA     DENS
+   047.216  376 004     00849           CPI     CON.MFM
+   047.220  302 331 047 00850           JNZ     QUERY3          FAILED MFM AND FM
+   047.223  315 136 031 00851           CALL    $TYPTX
+   047.226  103 110 105 00852           DB      'CHECKING SINGLE DENSITY',8AH
+   047.256  315 124 043 00853           CALL    CHGDENS         MIGHT BE FM
+   047.261  303 145 047 00854           JMP     QUERYL
+   047.264              00855   QUERYS  EQU     *
+   047.264  315 353 042 00856           CALL    H37CMD
+   047.267  041 331 047 00857           LXI     H,QUERY3
+   047.272  042 067 040 00858           SHLD    BLKICW
+   047.275  072 103 050 00859           LDA     CONCMD
+   047.300  366 002     00860           ORI     CON.DRQ
+   047.302  323 170     00861           OUT     DK.CON
+   047.304  001 000 000 00862           LXI     B,0
+   047.307  021 112 050 00863           LXI     D,SECBUF
+   047.312  041 322 047 00864           LXI     H,QUERY2
+   047.315  257         00865           XRA     A
+   047.316  366 304     00866           ORI     FDC.RDA+FDF.DLF
+   047.320  323 172     00867           OUT     FD.CMD
+   047.322              00868   QUERY2  EQU     *               LOOP UNTIL IRQ4
+   047.322  166         00869           HLT                     WAIT FOR DRQ
+   047.323  333 173     00870           IN      FD.DAT
+   047.325  022         00871           STAX    D
+   047.326  023         00872           INX     D
+   047.327  003         00873           INX     B
+   047.330  351         00874           PCHL
+   047.331              00875   QUERY3  EQU     *
+   047.331  365         00876           PUSH    PSW
+   047.332  076 320     00877           MVI     A,FDC.FI
+   047.334  323 172     00878           OUT     FD.CMD
+   047.336  333 173     00879           IN      FD.DAT
+   047.340  076 010     00880           MVI     A,CON.MO
+   047.342  323 170     00881           OUT     DK.CON
+   047.344  361         00882           POP     PSW
+   047.345  311         00883           RET
+                        00884   * SET 9600 BAUD
+   047.346              00885   B9600   EQU     *
+   047.346  315 136 031 00886           CALL    $TYPTX
+   047.351  123 105 124 00887           DB      'SET 9600 BAUD',8AH
+   047.367  076 014     00888           MVI     A,0CH
+   047.371  062 003 000 00889           STA     BAUDIV
 
 
 
@@ -841,44 +841,52 @@
                                                         HEATH ASM #104.06.00
                                                         01-Jan-77  Page   13
 
-   047.367  315 236 042 00890           CALL    SINT
-   047.372  303 017 045 00891           JMP     BEGLP
-                        00892   *
-   047.375              00893   QUIT    EQU     *
-   047.375  315 136 031 00894           CALL    $TYPTX
-   050.000  012 107 117 00895           DB      0AH,'GOODBYE',8AH
-   050.011  315 137 043 00896           CALL    DSLDRV
-   050.014  257         00897           XRA     A
-   050.015  377 000     00898           SCALL   .EXIT
-                        00899   *
-   050.017  123 131 060 00900   DEV1    DB      'SY0:',0
-   050.024  123 131 061 00901   DEV2    DB      'SY1:',0
-   050.031  123 131 062 00902   DEV3    DB      'SY2:',0
-                        00903   *
-   050.036  000         00904   CURTRK  DB      0               0-79
-   050.037  000         00905   CURSEC  DB      0               1-16
-   050.040  000         00906   SIDE    DB      0               0 OR 1
-   050.041  000         00907   CONCMD  DB      0               LAST COMMAND SENT TO DK.CON
-   050.042  004         00908   DENS    DB      CON.MFM
-                        00909   *
-   050.043  000         00910   SPERT   DB      0               SECTORS PER TRACK
-   050.044  000 000     00911   RDCNT   DW      0               BYTES READ
-   050.046  000         00912   NUMTRK  DB      0               NUM TRACKS (40 OR 80)
-   050.047  000         00913   NUMSID  DB      0               NUM SIDES (1 OR 2)
-                        00914   *
-                        00915   * HEATH 5.25
-                        00916   * FM =10 SECTORS, 256 BYTES (2560 BYTES PER TRACK)
-                        00917   * MFM=16 SECTORS, 256 BYTES (4096 BYTES PER TRACK)
-                        00918   * PC 5.25
-                        00919   * MFM= 8 SECTORS,1024 BYTES (8192 BYTES PER TRACK)
-                        00920   *
-   050.050              00921   SECBUF  DS      8192            MAX FULL TRACK
+   047.374  315 236 042 00890           CALL    SINT
+   047.377  303 017 045 00891           JMP     BEGLP
+                        00892   * SET 19200 BAUD
+   050.002              00893   B19200  EQU     *
+   050.002  315 136 031 00894           CALL    $TYPTX
+   050.005  123 105 124 00895           DB      'SET 19200 BAUD',8AH
+   050.024  076 006     00896           MVI     A,06H
+   050.026  062 003 000 00897           STA     BAUDIV
+   050.031  315 236 042 00898           CALL    SINT
+   050.034  303 017 045 00899           JMP     BEGLP
+                        00900   *
+   050.037              00901   QUIT    EQU     *
+   050.037  315 136 031 00902           CALL    $TYPTX
+   050.042  012 107 117 00903           DB      0AH,'GOODBYE',8AH
+   050.053  315 137 043 00904           CALL    DSLDRV
+   050.056  257         00905           XRA     A
+   050.057  377 000     00906           SCALL   .EXIT
+                        00907   *
+   050.061  123 131 060 00908   DEV1    DB      'SY0:',0
+   050.066  123 131 061 00909   DEV2    DB      'SY1:',0
+   050.073  123 131 062 00910   DEV3    DB      'SY2:',0
+                        00911   *
+   050.100  000         00912   CURTRK  DB      0               0-79
+   050.101  000         00913   CURSEC  DB      0               1-16
+   050.102  000         00914   SIDE    DB      0               0 OR 1
+   050.103  000         00915   CONCMD  DB      0               LAST COMMAND SENT TO DK.CON
+   050.104  004         00916   DENS    DB      CON.MFM
+                        00917   *
+   050.105  000         00918   SPERT   DB      0               SECTORS PER TRACK
+   050.106  000 000     00919   RDCNT   DW      0               BYTES READ
+   050.110  000         00920   NUMTRK  DB      0               NUM TRACKS (40 OR 80)
+   050.111  000         00921   NUMSID  DB      0               NUM SIDES (1 OR 2)
                         00922   *
-   110.050  000         00923           END     START
+                        00923   * HEATH 5.25
+                        00924   * FM =10 SECTORS, 256 BYTES (2560 BYTES PER TRACK)
+                        00925   * MFM=16 SECTORS, 256 BYTES (4096 BYTES PER TRACK)
+                        00926   * PC 5.25
+                        00927   * MFM= 8 SECTORS,1024 BYTES (8192 BYTES PER TRACK)
+                        00928   *
+   050.112              00929   SECBUF  DS      8192            MAX FULL TRACK
+                        00930   *
+   110.112  000         00931           END     START
 
 
-00923 Statements Assembled
-38216 Bytes Free
+00931 Statements Assembled
+38208 Bytes Free
  No Errors Detected
 
 
