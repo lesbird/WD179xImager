@@ -59,7 +59,6 @@ START   EQU     *
 * SETUP LPT PORT FOR XXXX,8N2
 *
 SINT    EQU     *
-*       DI
         XRA     A
         OUT     LCNTL4
         OUT     IER4
@@ -74,7 +73,6 @@ SINT    EQU     *
         OUT     LCNTL4
         IN      LSTAT4
         IN      RX4
-*       EI
         RET
 *
 * SEND A CHAR IN (A) TO THE LP PORT (340Q)
@@ -167,7 +165,6 @@ UNIBITS EQU     *
         RET
 * SELECT AIO.UNI
 SELDRV  EQU     *
-        PUSH    PSW
         PUSH    B
         CALL    H37CMD
         CALL    SETDENS
@@ -175,7 +172,6 @@ SELDRV  EQU     *
         MVI     A,300/2
         CALL    DLY
         POP     B
-        POP     PSW
         RET
 * SET DENSITY FROM (DENS)
 SETDENS EQU     *
@@ -374,6 +370,7 @@ READS   EQU     *
 * 6 = 1S80T
 * 7 = 2S80T
 * Q = QUERY DISK TYPE
+* T = QUERY TRACK
 *
 BEGIN   EQU     *
         CALL    $TYPTX
@@ -419,10 +416,12 @@ BEGLP1  EQU     *
         JZ      SET2S8
         CPI     'Q'
         JZ      QUERY
-        CPI     '9'
-        JZ      B9600
-        CPI     '('
-        JZ      B19200
+        CPI     'T'
+        JZ      GETTRK
+*       CPI     '9'
+*       JZ      B9600
+*       CPI     '('
+*       JZ      B19200
         MVI     A,'?'
         CALL    CHROUT
         JMP     BEGLP1
@@ -589,7 +588,9 @@ QUERY   EQU     *
         CALL    CHROUT
         CALL    $TYPTX
         DB      'QUERY DISK TYPE',8AH
+        LXI     B,0             SEC,TRK=0
         CALL    QUERY1
+QUERYR  EQU     *
         LDA     SPERT           SECTORS PER TRACK
         CALL    CHROUT
 * READ ADDRESS RESULTS
@@ -623,12 +624,15 @@ QUERY1  EQU     *
         MVI     A,CON.MFM       TEST MFM FIRST
         STA     DENS
         CALL    SELDRV
+        LXI     D,BUFSIZ
+        LXI     H,SECBUF
+        CALL    ZEROMEM
 QUERYL  EQU     *
         MVI     A,2
         STA     NUMSID          DOUBLE SIDED DEFAULT
         DCR     A
         STA     SIDE
-        LXI     B,0100H
+        MOV     B,A             SECTOR 1, C=TRK
         CALL    READS           TEST READ SIDE 2
         PUSH    PSW
         XRA     A
@@ -637,7 +641,9 @@ QUERYL  EQU     *
         JNC     QUERYS          GOOD DOUBLE SIDE READ
         MVI     A,1
         STA     NUMSID          SINGLE SIDED DISK
-        LXI     B,0100H
+        MOV     B,A
+        LDA     CURTRK
+        MOV     C,A
         CALL    READS           READ A TRACK FILL SPERT+RDCNT
         JNC     QUERYS          GOOD SINGLE SIDE READ
         LDA     DENS
@@ -646,6 +652,8 @@ QUERYL  EQU     *
         CALL    $TYPTX
         DB      'CHECKING SINGLE DENSITY',8AH
         CALL    CHGDENS         MIGHT BE FM
+        LDA     CURTRK
+        MOV     C,A
         JMP     QUERYL
 QUERYS  EQU     *
         CALL    H37CMD
@@ -668,14 +676,27 @@ QUERY2  EQU     *               LOOP UNTIL IRQ4
         INX     B
         PCHL
 QUERY3  EQU     *
-        PUSH    PSW
         MVI     A,FDC.FI
         OUT     FD.CMD
         IN      FD.DAT
         MVI     A,CON.MO
         OUT     DK.CON
-        POP     PSW
+        LDA     SPERT
+        ORA     A
+        RNZ
+        STC
         RET
+*
+GETTRK  EQU     *
+        CALL    CHROUT          HANDSHAKE
+        CALL    CHRIN           GET TRACK TO CHECK
+        MOV     C,A             STORE TRACK
+        PUSH    B
+        CALL    $TYPTX
+        DB      'QUERY TRACK',8AH
+        POP     B
+        CALL    QUERY1
+        JMP     QUERYR
 * SET 9600 BAUD
 B9600   EQU     *
         CALL    $TYPTX
@@ -724,4 +745,3 @@ NUMSID  DB      0               NUM SIDES (1 OR 2)
 SECBUF  DS      8192            MAX FULL TRACK
 *
         END     START
->
