@@ -418,10 +418,8 @@ BEGLP1  EQU     *
         JZ      QUERY
         CPI     'T'
         JZ      GETTRK
-*       CPI     '9'
-*       JZ      B9600
-*       CPI     '('
-*       JZ      B19200
+        CPI     'E'
+        JZ      EXMTRK
         MVI     A,'?'
         CALL    CHROUT
         JMP     BEGLP1
@@ -485,6 +483,9 @@ SENDT   EQU     *
         CALL    CHROUT
         LDA     SPERT
         CALL    CHROUT
+        MOV     A,L
+        ORA     H
+        JZ      SENDT2
         LXI     D,SECBUF
 SENDT1  EQU     *
         LDAX    D
@@ -494,6 +495,7 @@ SENDT1  EQU     *
         MOV     A,L
         ORA     H
         JNZ     SENDT1
+SENDT2  EQU     *
         MVI     A,'R'
         CALL    CHROUT          HANDSHAKE
         RET
@@ -590,21 +592,23 @@ QUERY   EQU     *
         DB      'QUERY DISK TYPE',8AH
         LXI     B,0             SEC,TRK=0
         CALL    QUERY1
+        CALL    QUERYR
+        JMP     BEGLP
 QUERYR  EQU     *
         LDA     SPERT           SECTORS PER TRACK
         CALL    CHROUT
 * READ ADDRESS RESULTS
-        LDA     SECBUF          TRACK
+        LDA     QTRK            TRACK
         CALL    CHROUT
-        LDA     SECBUF+1        SIDE
+        LDA     QSID            SIDE
         CALL    CHROUT
-        LDA     SECBUF+2        SECTOR
+        LDA     QSEC            SECTOR
         CALL    CHROUT
-        LDA     SECBUF+3        SECTOR LENGTH
+        LDA     QSECL           SECTOR LENGTH
         CALL    CHROUT
-        LDA     SECBUF+4        CRC 1
+        LDA     QCRC1           CRC 1
         CALL    CHROUT
-        LDA     SECBUF+5        CRC 2
+        LDA     QCRC2           CRC 2
         CALL    CHROUT
 * DISK PARAMETERS
         LDA     NUMSID          NUM SIDES
@@ -616,8 +620,8 @@ QUERYR  EQU     *
         CALL    CHROUT
         LDA     DENS            DENSITY CON.MFM OR 0
         CALL    CHROUT
-        JMP     BEGLP
-*
+        RET
+* READ/DETERMINE DISK TYPE
 QUERY1  EQU     *
         XRA     A
         STA     SPERT
@@ -655,6 +659,7 @@ QUERYL  EQU     *
         LDA     CURTRK
         MOV     C,A
         JMP     QUERYL
+* JUST READ THE HEADER
 QUERYS  EQU     *
         CALL    H37CMD
         LXI     H,QUERY3
@@ -663,7 +668,7 @@ QUERYS  EQU     *
         ORI     CON.DRQ
         OUT     DK.CON
         LXI     B,0
-        LXI     D,SECBUF
+        LXI     D,QBUF
         LXI     H,QUERY2
         XRA     A
         ORI     FDC.RDA+FDF.DLF
@@ -681,12 +686,12 @@ QUERY3  EQU     *
         IN      FD.DAT
         MVI     A,CON.MO
         OUT     DK.CON
-        LDA     SPERT
-        ORA     A
+        MOV     A,C
+        ORA     B
         RNZ
         STC
         RET
-*
+* GET TRACK HEADER
 GETTRK  EQU     *
         CALL    CHROUT          HANDSHAKE
         CALL    CHRIN           GET TRACK TO CHECK
@@ -695,31 +700,114 @@ GETTRK  EQU     *
         CALL    $TYPTX
         DB      'QUERY TRACK',8AH
         POP     B
-        CALL    QUERY1
-        JMP     QUERYR
-* SET 9600 BAUD
-B9600   EQU     *
-        CALL    $TYPTX
-        DB      'SET 9600 BAUD',8AH
-        MVI     A,0CH
-        STA     BAUDIV
-        CALL    SINT
+        CALL    GETTR0
+        CALL    QUERYR
         JMP     BEGLP
-* SET 19200 BAUD
-B19200  EQU     *
+GETTR0  EQU     *
+        CALL    SETMFM
+GETTR1  EQU     *
+        CALL    QUERYS
+        JNC     GETTR3
+        LDA     DENS
+        ORA     A
+        JZ      GETTR2
         CALL    $TYPTX
-        DB      'SET 19200 BAUD',8AH
-        MVI     A,06H
-        STA     BAUDIV
-        CALL    SINT
+        DB      'TRY SINGLE DENSITY',8AH
+        CALL    SETFM
+        LDA     CURTRK
+        MOV     C,A
+        JMP     GETTR1
+GETTR2  EQU     *
+        CALL    $TYPTX
+        DB      'DISK NOT RECOGNIZED',8AH
+        STC
+GETTR3  EQU     *
+        RET
+*
+EXMTRK  EQU     *
+        CALL    CHROUT          HANDSHAKE
+        CALL    CHRIN
+        MOV     C,A             TRACK TO READ
+        CALL    QUERY1
+        CALL    SENDT
+        CALL    QUERYR
         JMP     BEGLP
 *
-QUIT    EQU     *
-        CALL    $TYPTX
-        DB      0AH,'GOODBYE',8AH
-        CALL    DSLDRV
-        XRA     A
-        SCALL   .EXIT
+FMTTRK  EQU     *
+        LDA     DENS
+        ORA     A
+        JNZ     FMTDD
+* SINGLE DENSITY FORMAT
+FMTSD   EQU     *
+        LXI     D,SDTT
+        RET
+* DOUBLE DENSITY FORMAT
+FMTDD   EQU     *
+        MVI     A,16
+        STA     SPERT
+        MVI     A,1
+        STA     DDSEC           START SECTOR 1
+        LDA     CURTRK
+        STA     DDTRK
+        LDA     SIDE
+        STA     DDSID
+        LXI     D,SECBUF
+        LXI     H,DDTT
+FMTDD1  EQU     *
+        MOV     A,M
+        INX     H
+        MOV     C,M
+        INX     H
+        ORA     C
+        JZ      FMTDD2          END OF SECTOR DATA
+        CALL    WDAT
+        JMP     FMTDD1
+FMTDD2  EQU     *
+        LDA     SPERT
+        INR     A
+        MOV     C,A
+        LDA     DDSEC
+        INR     A
+        STA     DDSEC
+        CMP     C
+        JNZ     FMTDD1
+* WRITE THE TRACK
+WRTTRK  EQU     *
+        LDA     CONCMD
+        ORI     CON.DRQ
+        OUT     DK.CON
+        MVI     A,FDC.WTT+FDF.DLF
+        MOV     L,A
+        LDA     SIDE
+        ORA     A
+        JZ      WRTTR1
+        MVI     A,FDF.SS1
+        ORA     L
+WRTTR1  EQU     *
+        LXI     H,WRTTR3
+        SHLD    BLKICW
+        LXI     H,WRTTR2
+        LXI     D,SECBUF
+        OUT     FD.CMD
+WRTTR2  EQU     *
+        HLT
+        LDAX    D
+        OUT     FD.DAT
+        INX     D
+        PCHL
+WRTTR3  EQU     *
+        MVI     A,150           WRITE GATE DELAY
+WRTTR4  DCR     A
+        JNZ     WRTTR4
+        LDA     CONCMD
+        OUT     DK.CON
+        RET
+*
+WDAT    STAX    D
+        INX     D
+        DCR     C
+        JNZ     WDAT
+        RET
 *
 DEV1    DB      'SY0:',0
 DEV2    DB      'SY1:',0
@@ -736,12 +824,56 @@ RDCNT   DW      0               BYTES READ
 NUMTRK  DB      0               NUM TRACKS (40 OR 80)
 NUMSID  DB      0               NUM SIDES (1 OR 2)
 *
+QBUF    EQU     *
+QTRK    DB      0
+QSID    DB      0
+QSEC    DB      0
+QSECL   DB      0
+QCRC1   DB      0
+QCRC2   DB      0
+*
+DDTT    DB      04EH,40
+DDTTA   DB      0,12
+        DB      0F5H,3
+        DB      0FEH,1
+DDTRK   DB      0,1
+DDSID   DB      0,1
+DDSEC   DB      0,1
+        DB      1,1
+        DB      0F7H,1
+        DB      04EH,22
+        DB      0,12
+        DB      0F5H,3
+        DB      0FBH,1
+DDDP1   DB      0E5H,128
+DDDP2   DB      0E5H,128
+        DB      0F7H,1
+        DB      04EH,43
+        DB      0,0
+
+SDTT    DB      0FFH,32
+SDTTA   DB      0,6
+        DB      0FEH,1
+SDTRK   DB      0,1
+SDSID   DB      0,1
+SDSEC   DB      0,1
+        DB      1,1
+        DB      0F7H,1
+        DB      0FFH,11
+        DB      0,6
+        DB      0FBH,1
+SDDP1   DB      0E5H,128
+SDDP2   DB      0E5H,128
+        DB      0F7H,1
+        DB      0FFH,16
+        DB      0,0
+*
 * HEATH 5.25
 * FM =10 SECTORS, 256 BYTES (2560 BYTES PER TRACK)
 * MFM=16 SECTORS, 256 BYTES (4096 BYTES PER TRACK)
 * PC 5.25
-* MFM= 8 SECTORS,1024 BYTES (8192 BYTES PER TRACK)
+* MFM= 9 SECTORS, 512 BYTES (4608 BYTES PER TRACK)
 *
-SECBUF  DS      8192            MAX FULL TRACK
+SECBUF  DS      BUFSIZ          MAX FULL TRACK
 *
         END     START
