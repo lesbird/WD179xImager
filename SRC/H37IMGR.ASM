@@ -177,8 +177,9 @@ UNIBITS EQU     *
 * SELECT AIO.UNI
 SELDRV  EQU     *
         PUSH    B
-        CALL    H37CMD
         CALL    SETDENS
+        LDA     CONCMD
+        OUT     DK.CON
         EI
         MVI     A,300/2
         CALL    DLY
@@ -192,7 +193,7 @@ SETDENS EQU     *
         LDA     DENS            CON.MFM OR 0
         ORA     C
         STA     CONCMD          DS0+CON.MO+CON.EI+CON.MFM
-        OUT     DK.CON
+*       OUT     DK.CON
         RET
 *
 SETMFM  EQU     *
@@ -207,12 +208,11 @@ SETFM   EQU     *
 * SWITCH DENSITY FM<->MFM
 CHGDENS EQU     *
         LDA     DENS
-        CPI     CON.MFM
-        JZ      SETFM
+        ORA     A
+        JNZ     SETFM
         JMP     SETMFM
 * DESELECT ALL DRIVES
 DSLDRV  EQU     *
-        CALL    H37CMD
         MVI     A,FDC.FI
         OUT     FD.CMD
         XRA     A
@@ -220,7 +220,6 @@ DSLDRV  EQU     *
         RET
 * 40MS DELAY
 DLY40   EQU     *
-        PUSH    PSW
         PUSH    B
         LXI     B,3200
 DLY40A  DCX     B
@@ -228,7 +227,6 @@ DLY40A  DCX     B
         ORA     C
         JNZ     DLY40A
         POP     B
-        POP     PSW
         RET
 * SET UP INTERRUPT 4 VECTOR
 SUPINT  EQU     *
@@ -305,7 +303,9 @@ SEEKD2  EQU     *
         OUT     FD.CMD
         JMP     WAITINT
 SEEKD3  EQU     *
+        PUSH    PSW
         CALL    DLY40           HEAD SETTLE TIME
+        POP     PSW
         ANI     FDS.TK0
         RNZ
         STC
@@ -315,6 +315,7 @@ SEEKTO  EQU     *
         CALL    H37TRK
         MOV     A,C
         OUT     FD.TRK          SET TRACK REGISTER
+        CALL    H37CMD
         LDA     CURTRK
         SUB     C
         RZ                      ALREADY AT TRK C
@@ -367,6 +368,8 @@ READL2  EQU     *
         IN      FD.SEC          GET TOTAL SECTORS
         DCR     A
         STA     SPERT
+        CALL    H37CMD
+        LDA     SPERT
         ORA     A               SECTORS PER TRACK == 0?
         RNZ                     NO ERRORS
         STC                     ERROR, SET CARRY FLAG
@@ -528,6 +531,7 @@ SENDT1  EQU     *
         RET
 * COMMAND WRITE DISK IMAGE
 CMDWDI  EQU     *
+        CALL    CHROUT          HANDSHAKE
         CALL    CHRIN           GET SPT
         STA     SPERT
         CALL    CHRIN           GET SSZ
