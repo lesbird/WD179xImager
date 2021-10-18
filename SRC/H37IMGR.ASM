@@ -44,11 +44,15 @@ START   EQU     *
         XRA     A
         CALL    ZEROBUF
 * DISMOUNT ALL DRIVES
-        LXI     H,DEV1
+        LXI     H,DEVSY0
         SCALL   .DMNMS
-        LXI     H,DEV2
+        LXI     H,DEVSY1
         SCALL   .DMNMS
-        LXI     H,DEV3
+        LXI     H,DEVSY2
+        SCALL   .DMNMS
+        LXI     H,DEVDK0
+        SCALL   .DMNMS
+        LXI     H,DEVDK1
         SCALL   .DMNMS
 *
         CALL    SINT
@@ -483,7 +487,7 @@ CMDRD1  EQU     *
 *
         MVI     A,08H
         CALL    OUT350
-        MVI     A,'*'
+        MVI     A,'.'
         CALL    OUT350          SHOW TRACK SENT
         POP     B               GET SEC,TRK
         LDA     NUMSID          1 OR 2
@@ -496,6 +500,17 @@ CMDRD1  EQU     *
         STA     SIDE
         JMP     CMDRD1          READ SIDE 2
 CMDRD2  EQU     *
+        MOV     A,C
+        CPI     39
+        JNZ     CMDRD3
+* WRAP LINE AT TRACK 80
+        MVI     A,'.'
+        CALL    OUT350
+        MVI     A,0DH
+        CALL    OUT350
+        MVI     A,0AH
+        CALL    OUT350
+CMDRD3  EQU     *
         XRA     A
         STA     SIDE            SET SIDE 1
         INR     C
@@ -559,8 +574,14 @@ CMDWDI  EQU     *
         POP     B
         MOV     A,C             EVALUATE DENSITY
         ORA     A
-        CZ      SETFM
-        LXI     B,0             TRACK 0
+        JZ      CMDWDS
+        CALL    SETFMTD
+        JMP     CMDWD0
+CMDWDS  EQU     *
+        CALL    SETFM
+        CALL    SETFMTS
+CMDWD0  EQU     *
+        LXI     B,0
 CMDWD1  EQU     *
         PUSH    B
         MVI     A,'F'
@@ -638,8 +659,8 @@ CMDWD5  EQU     *
         MOV     L,A
         MVI     A,8
         CALL    OUT350
-        MVI     A,'@'
-        ADD     L
+        MOV     A,L
+        CALL    BARANI
         CALL    OUT350
         JMP     CMDWD3
 * DO NEXT TRACK
@@ -662,6 +683,16 @@ CMDWD6  EQU     *
         JMP     CMDWD1
 * NEXT TRACK
 CMDWD7  EQU     *
+        MOV     A,C
+        CPI     39
+        JNZ     CMDWD8
+        MVI     A,'.'
+        CALL    OUT350
+        MVI     A,0DH
+        CALL    OUT350
+        MVI     A,0AH
+        CALL    OUT350
+CMDWD8  EQU     *
         XRA     A
         STA     SIDE
         INR     C
@@ -676,26 +707,53 @@ CMDWD9  EQU     *
         DB      0AH,'DONE',8AH
         JMP     BEGLP
 *
-FMTTRK  EQU     *
+SETFMTD EQU     *
         MVI     A,04EH
         CALL    ZEROBUF
-        LDA     DENS
-        ORA     A
-        JNZ     FMTDD
-* SINGLE DENSITY FORMAT
-FMTSD   EQU     *
-        LXI     D,SDTT
+        LXI     H,DDSEC
+        SHLD    FMT00+1
+        SHLD    FMT05+1
+        SHLD    FMT06+1
+        LXI     H,DDTRK
+        SHLD    FMT01+1
+        LXI     H,DDSID
+        SHLD    FMT02+1
+        LXI     H,DDTT
+        SHLD    FMT03+1
+        LXI     H,DDTTA
+        SHLD    FMT04+1
         RET
-* DOUBLE DENSITY FORMAT
-FMTDD   EQU     *
+SETFMTS EQU     *
+        MVI     A,0FFH
+        CALL    ZEROBUF
+        LXI     H,SDSEC
+        SHLD    FMT00+1
+        SHLD    FMT05+1
+        SHLD    FMT06+1
+        LXI     H,SDTRK
+        SHLD    FMT01+1
+        LXI     H,SDSID
+        SHLD    FMT02+1
+        LXI     H,SDTT
+        SHLD    FMT03+1
+        LXI     H,SDTTA
+        SHLD    FMT04+1
+        RET
+* FORMAT FOR DOUBLE/SINGLE DENSITY
+FMTTRK  EQU     *
         MVI     A,1
+FMT00   EQU     *
         STA     DDSEC           START SECTOR 1
         LDA     CURTRK
+FMT01   EQU     *
         STA     DDTRK
         LDA     SIDE            0 OR 1
+FMT02   EQU     *
         STA     DDSID
         LXI     D,SECBUF
 * BUILD DD SECTOR BUFFER
+FMTTR1  EQU     *
+FMT03   EQU     *
         LXI     H,DDTT
         MOV     A,M
         INX     H
@@ -703,6 +761,7 @@ FMTDD   EQU     *
         INX     H
         CALL    WDAT            TRACK HEADER
 FMTDD0  EQU     *
+FMT04   EQU     *
         LXI     H,DDTTA         SECTOR DATA
 FMTDD1  EQU     *
         MOV     A,M
@@ -719,8 +778,10 @@ FMTDD2  EQU     *
         LDA     SPERT
         INR     A
         MOV     C,A
+FMT05   EQU     *
         LDA     DDSEC
         INR     A
+FMT06   EQU     *
         STA     DDSEC
         CMP     C
         JNZ     FMTDD0
@@ -745,6 +806,7 @@ WRTTR2  EQU     *
         LDAX    D
         OUT     FD.DAT
         INX     D
+        INX     B
         PCHL
 WRTTR3  EQU     *
         MVI     A,150           WRITE GATE DELAY
@@ -752,12 +814,32 @@ WRTTR4  DCR     A
         JNZ     WRTTR4
         LDA     CONCMD
         OUT     DK.CON
+        XRA     A
+        LHLD    RDCNT
+        MOV     A,H
+        CMP     B
+        JNZ     WRTTRE
+        MOV     A,L
+        CMP     C
+        RZ
+WRTTRE  EQU     *
+        STC
         RET
 *
 WDAT    STAX    D
         INX     D
         DCR     C
         JNZ     WDAT
+        RET
+* DO BAR ANIMATION
+BARANI  EQU     *
+        PUSH    D
+        LXI     H,BARS
+        MVI     D,0
+        MOV     E,A
+        DAD     D
+        MOV     A,M
+        POP     D
         RET
 * COMMAND SET DRIVE 0
 SETDK0  EQU     *
@@ -1013,9 +1095,15 @@ SETSID2 EQU     *
         STA     SIDE
         JMP     BEGLP
 *
-DEV1    DB      'SY0:',0
-DEV2    DB      'SY1:',0
-DEV3    DB      'SY2:',0
+DEVSY0  DB      'SY0:',0
+DEVSY1  DB      'SY1:',0
+DEVSY2  DB      'SY2:',0
+DEVDK0  DB      'DK0:',0
+DEVDK1  DB      'DK1:',0
+*
+BARS    DB      '|','/','-','\','|','/','-','\'
+        DB      '|','/','-','\','|','/','-','\'
+        DB      '|','/','-','\','|','/','-','\'
 *
 CURTRK  DB      0               0-79
 CURSEC  DB      0               1-16
