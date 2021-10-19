@@ -929,8 +929,18 @@ QUERY   EQU     *
         CALL    CHROUT
         CALL    $TYPTX
         DB      'QUERY DISK TYPE',8AH
-        LXI     B,0             SEC,TRK=0
+        XRA     A
+        STA     SPERT
+        STA     NUMSID
+        LXI     B,0104H         SEC,TRK=4
+* CHECK DISK HEADER FIRST
+        CALL    SEEKTO
+        CALL    QUERYS
+        LDA     QTRK
+        CPI     4               SHOULD BE TRACK 4
+        JNZ     QUERYX          NO? ABORT
         CALL    QUERY1
+QUERYX  EQU     *
         CALL    QUERYR
         JMP     BEGLP
 QUERYR  EQU     *
@@ -976,21 +986,19 @@ QUERYL  EQU     *
         STA     SIDE
         MOV     B,A             SECTOR 1, C=TRK
         CALL    READS           TEST READ SIDE 2
-        PUSH    PSW
+        RNC
         XRA     A
         STA     SIDE
-        POP     PSW
-        JNC     QUERYS          GOOD DOUBLE SIDE READ
         MVI     A,1
         STA     NUMSID          SINGLE SIDED DISK
         MOV     B,A
         LDA     CURTRK
         MOV     C,A
         CALL    READS           READ A TRACK FILL SPERT+RDCNT
-        JNC     QUERYS          GOOD SINGLE SIDE READ
+        RNC                     GOOD SINGLE SIDE READ
         LDA     DENS
         CPI     CON.MFM
-        JNZ     QUERY3          FAILED MFM AND FM
+        JNZ     QUERY3
         CALL    $TYPTX
         DB      'CHECKING SINGLE DENSITY',8AH
         CALL    CHGDENS         MIGHT BE FM
@@ -999,7 +1007,13 @@ QUERYL  EQU     *
         JMP     QUERYL
 * JUST READ THE HEADER
 QUERYS  EQU     *
-        CALL    H37CMD
+        XRA     A
+        STA     QTRK
+        STA     QSID
+        STA     QSEC
+        STA     QSECL
+        STA     QCRC1
+        STA     QCRC2
         LXI     H,QUERY3
         SHLD    BLKICW
         LDA     CONCMD
@@ -1034,10 +1048,16 @@ GETTRK  EQU     *
         CALL    CHROUT          HANDSHAKE
         CALL    CHRIN           GET TRACK TO CHECK
         MOV     C,A             STORE TRACK
-        PUSH    B
+        ADI     'A'
+        CALL    OUT350
+        MVI     A,' '
+        CALL    OUT350
+        CALL    SEEKTO
         CALL    $TYPTX
-        DB      'QUERY TRACK',8AH
-        POP     B
+        DB      'READ TRACK HEADER',8AH
+        XRA     A
+        STA     SPERT
+        STA     NUMSID
         CALL    GETTR0
         CALL    QUERYR
         JMP     BEGLP
@@ -1052,8 +1072,6 @@ GETTR1  EQU     *
         CALL    $TYPTX
         DB      'TRY SINGLE DENSITY',8AH
         CALL    SETFM
-        LDA     CURTRK
-        MOV     C,A
         JMP     GETTR1
 GETTR2  EQU     *
         CALL    $TYPTX
