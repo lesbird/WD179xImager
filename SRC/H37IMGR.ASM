@@ -455,6 +455,8 @@ BEGLP1  EQU     *
         JZ      SETSID1
         CPI     'B'
         JZ      SETSID2
+        CPI     'F'
+        JZ      FMTDSK
         MVI     A,'?'
         CALL    CHROUT
         JMP     BEGLP1
@@ -521,6 +523,7 @@ CMDRD3  EQU     *
         CALL    OUT350
         MVI     A,0AH
         CALL    OUT350
+        CALL    SEEK0
         JMP     BEGLP
 * SEND TRACK DATA TO 340Q
 SENDT   EQU     *
@@ -546,12 +549,17 @@ SENDT1  EQU     *
         RET
 * COMMAND WRITE DISK IMAGE
 CMDWDI  EQU     *
+        PUSH    PSW
+        CALL    $TYPTX
+        DB      'WRITE DISK IMAGE',8AH
+        POP     PSW
+* MAKE SURE NO CHRIN DROPPED
+        DI                      38,400 BAUD DI
         CALL    CHROUT          HANDSHAKE
         CALL    CHRIN           GET SPT
         STA     SPERT
         CALL    CHRIN           GET SSZ
-        STA     DDSIZ
-        STA     SDSIZ
+        STA     SSIZE
         CALL    CHRIN           GET DENS (0 OR CON.MFM)
         MOV     C,A
         CALL    CHRIN           GET HIGHBYTE COUNT
@@ -559,19 +567,16 @@ CMDWDI  EQU     *
         CALL    CHRIN           GET LOWBYTE COUNT
         MOV     L,A
         SHLD    RDCNT
-        MOV     A,H
-        ADI     'A'
-        CALL    OUT350
-        MOV     A,L
-        ADI     'A'
-        CALL    OUT350
-        PUSH    B
-        CALL    $TYPTX
-        DB      ' WRITE DISK',8AH
+        EI                      38,400 BAUD EI
+*       MOV     A,H
+*       ADI     'A'
+*       CALL    OUT350
+*       MOV     A,L
+*       ADI     'A'
+*       CALL    OUT350
         CALL    SETMFM
         XRA     A
         STA     SIDE
-        POP     B
         MOV     A,C             EVALUATE DENSITY
         ORA     A
         JZ      CMDWDS
@@ -581,6 +586,8 @@ CMDWDS  EQU     *
         CALL    SETFM
         CALL    SETFMTS
 CMDWD0  EQU     *
+        CALL    SETTRB
+        JC      CMDWDE          ERROR SPERT NOT SUPPORTED
         LXI     B,0
 CMDWD1  EQU     *
         PUSH    B
@@ -703,88 +710,133 @@ CMDWD8  EQU     *
         JMP     CMDWD1
 CMDWD9  EQU     *
         CALL    SEEK0
+        JMP     BEGLP
+CMDWDE  EQU     *
         CALL    $TYPTX
-        DB      0AH,'DONE',8AH
+        DB      0AH,'ERROR SECTORS PER TRACK NOT SUPPORTED',8AH
+        MVI     A,'?'
+        CALL    CHROUT
+        JMP     BEGLP
+*
+FMTDSK  EQU     *
+        PUSH    PSW
+        CALL    $TYPTX
+        DB      'FORMAT DISK',8AH
+        POP     PSW
+        DI
+        CALL    CHROUT          HANDSHAKE
+        CALL    CHRIN           SECS PER TRACK
+        STA     SPERT
+        CALL    CHRIN           SEC SIZE (0,1,2,3)
+        STA     SSIZE
+        CALL    CHRIN           DENS (0,4)
+        EI
+        PUSH    PSW
+        CALL    SETMFM
+        CALL    SETFMTD
+        POP     PSW
+        ORA     A
+        JNZ     FMTDS1
+        CALL    SETFM
+        CALL    SETFMTS
+FMTDS1  EQU     *
+        MVI     A,'F'
+        CALL    CHROUT          HANDSHAKE
+        CALL    SETTRB
+        JC      FMTDS9
+        CALL    SEEK0
+FMTDS2  EQU     *
+        CALL    FMTTRK
+        MVI     A,'.'
+        CALL    OUT350
+        LDA     NUMSID
+        DCR     A
+        JZ      FMTDS3
+        LDA     SIDE
+        ORA     A
+        JNZ     FMTDS3
+        INR     A
+        STA     SIDE
+        JMP     FMTDS2
+FMTDS3  EQU     *
+        XRA     A
+        STA     SIDE
+        LDA     CURTRK
+        INR     A
+        MOV     C,A
+        LDA     NUMTRK
+        CMP     C
+        JZ      FMTDS9
+        CALL    STPIN
+        JMP     FMTDS2
+FMTDS9  EQU     *
+        CALL    $TYPTX
+        DB      0AH,'FORMAT COMPLETE',8AH
+        CALL    SEEK0
+        MVI     A,'F'
+        CALL    CHROUT          HANDSHAKE
         JMP     BEGLP
 *
 SETFMTD EQU     *
         MVI     A,04EH
         CALL    ZEROBUF
-        LXI     H,DDSEC
-        SHLD    FMT00+1
-        SHLD    FMT05+1
-        SHLD    FMT06+1
-        LXI     H,DDTRK
-        SHLD    FMT01+1
-        LXI     H,DDSID
-        SHLD    FMT02+1
-        LXI     H,DDTT
-        SHLD    FMT03+1
-        LXI     H,DDTTA
-        SHLD    FMT04+1
         RET
 SETFMTS EQU     *
         MVI     A,0FFH
         CALL    ZEROBUF
-        LXI     H,SDSEC
-        SHLD    FMT00+1
-        SHLD    FMT05+1
-        SHLD    FMT06+1
-        LXI     H,SDTRK
-        SHLD    FMT01+1
-        LXI     H,SDSID
-        SHLD    FMT02+1
-        LXI     H,SDTT
-        SHLD    FMT03+1
-        LXI     H,SDTTA
-        SHLD    FMT04+1
         RET
 * FORMAT FOR DOUBLE/SINGLE DENSITY
 FMTTRK  EQU     *
         MVI     A,1
-FMT00   EQU     *
-        STA     DDSEC           START SECTOR 1
+        STA     DDBUFS          START SECTOR 1
+        STA     SDBUFS
         LDA     CURTRK
-FMT01   EQU     *
-        STA     DDTRK
+        STA     DDBUFT
+        STA     SDBUFT
         LDA     SIDE            0 OR 1
-FMT02   EQU     *
-        STA     DDSID
+        STA     DDBUFD
+        STA     SDBUFD
+        LDA     SSIZE
+        STA     DDBUFZ
+        STA     SDBUFZ
         LXI     D,SECBUF
-* BUILD DD SECTOR BUFFER
+* BUILD TRACK BUFFER
 FMTTR1  EQU     *
-FMT03   EQU     *
-        LXI     H,DDTT
+        LXI     H,DDBUF
+        LDA     DENS
+        ORA     A
+        JNZ     FMTTR2
+        LXI     H,SDBUF
+FMTTR2  EQU     *
         MOV     A,M
         INX     H
         MOV     C,M
         INX     H
         CALL    WDAT            TRACK HEADER
-FMTDD0  EQU     *
-FMT04   EQU     *
-        LXI     H,DDTTA         SECTOR DATA
-FMTDD1  EQU     *
+FMTTR3  EQU     *
+        PUSH    H               SECTOR DATA
+FMTTR4  EQU     *
         MOV     A,M
         INX     H
         MOV     C,M
         INX     H
         MOV     B,A
         ORA     C
-        JZ      FMTDD2          END OF SECTOR DATA
+        JZ      FMTTR5          END OF SECTOR DATA
         MOV     A,B
         CALL    WDAT
-        JMP     FMTDD1
-FMTDD2  EQU     *
+        JMP     FMTTR4
+FMTTR5  EQU     *
+        POP     H
         LDA     SPERT
         INR     A
         MOV     C,A
-FMT05   EQU     *
-        LDA     DDSEC
+        LDA     DDBUFS
         INR     A
-FMT06   EQU     *
-        STA     DDSEC
+        STA     DDBUFS
+        STA     SDBUFS
         CMP     C
-        JNZ     FMTDD0
+        JNZ     FMTTR3
 * WRITE THE TRACK
 WRTTRK  EQU     *
         LDA     CONCMD
@@ -824,6 +876,43 @@ WRTTR4  DCR     A
         RZ
 WRTTRE  EQU     *
         STC
+        RET
+* SET UP TRACK DEFINITION BASED ON SECTORS PER TRACK
+SETTRB  EQU     *
+        LDA     SPERT
+        LXI     H,DD05
+        CPI     5               CPM 05,1024
+        JZ      SETTR1
+        LXI     H,DD08
+        CPI     8               MSDOS 08,512
+        JZ      SETTR1
+        LXI     H,DD09
+        CPI     9               MSDOS 09,512
+        JZ      SETTR1
+        LXI     H,DD10
+        CPI     10              HDOS 10,256
+        JZ      SETTR1
+        LXI     H,DD16
+        CPI     16              HDOS 16,256
+        JZ      SETTR1
+        STC
+        RET
+SETTR1  EQU     *
+        LXI     B,48
+        LXI     D,DDBUF
+        LDA     DENS
+        ORA     A
+        JNZ     CPYBUF
+        LXI     D,SDBUF
+CPYBUF  EQU     *
+        MOV     A,M
+        INX     H
+        STAX    D
+        INX     D
+        DCX     B
+        MOV     A,C
+        ORA     B
+        JNZ     CPYBUF
         RET
 *
 WDAT    STAX    D
@@ -1131,6 +1220,7 @@ CONCMD  DB      0               LAST COMMAND SENT TO DK.CON
 DENS    DB      CON.MFM
 *
 SPERT   DB      0               SECTORS PER TRACK
+SSIZE   DB      0               SECTOR SIZE (0,1,2,3)
 RDCNT   DW      0               BYTES READ
 NUMTRK  DB      0               NUM TRACKS (40 OR 80)
 NUMSID  DB      0               NUM SIDES (1 OR 2)
@@ -1143,40 +1233,158 @@ QSECL   DB      0
 QCRC1   DB      0
 QCRC2   DB      0
 *
-DDTT    DB      04EH,40         GAP
-DDTTA   DB      0,12
+DDBUF   DB      04EH,40         GAP
+DDBUFA  DB      0,12
+        DB      0F5H,3          GENERATE 3 A1 BYTES
+        DB      0FEH,1          SECTOR HEADER
+DDBUFT  DB      0,1             TRACK
+DDBUFD  DB      0,1             SIDE
+DDBUFS  DB      0,1             SECTOR
+DDBUFZ  DB      1,1             SECTOR SIZE (0,1,2,3)
+        DB      0F7H,1          GENERATE 2 CRC BYTES
+        DB      04EH,22         GAP
+        DB      0,12            LEADING ZEROS
+        DB      0F5H,3          GENERATE 3 A1 BYTES
+        DB      0FBH,1          DATA HEADER
+* FOLLOWING DATA WILL CHANGE DEPENDING ON FORMAT
+        DB      0E5H,128        DATA 1
+        DB      0E5H,128        DATA 2
+        DB      0E5H,128        DATA 3
+        DB      0E5H,128        DATA 4
+        DB      0E5H,128        DATA 5
+        DB      0E5H,128        DATA 6
+        DB      0E5H,128        DATA 7
+        DB      0E5H,128        DATA 8
+        DB      0F7H,1          GENERATE 2 CRC BYTES
+        DB      04EH,43         GAP
+        DB      0,0             END OF SECTOR
+*
+SDBUF   DB      0FFH,32
+SDBUFA  DB      0,6
+        DB      0FEH,1
+SDBUFT  DB      0,1
+SDBUFD  DB      0,1
+SDBUFS  DB      0,1
+SDBUFZ  DB      1,1
+        DB      0F7H,1
+        DB      0FFH,11
+        DB      0,6
+        DB      0FBH,1
+        DB      0E5H,128
+        DB      0E5H,128
+        DB      0F7H,1
+        DB      0FFH,16
+        DB      0,0             END OF SECTOR
+        DB      0,0             PAD TO 48 BYTES
+        DB      0,0
+        DB      0,0
+        DB      0,0
+        DB      0,0
+        DB      0,0
+        DB      0,0
+        DB      0,0
+* DOUBLE DENSITY
+DD05    DB      04EH,40         GAP
+        DB      0,12
         DB      0F5H,3
         DB      0FEH,1          SECTOR HEADER
-DDTRK   DB      0,1
-DDSID   DB      0,1
-DDSEC   DB      0,1
-DDSIZ   DB      1,1
+        DB      0,1
+        DB      0,1
+        DB      0,1
+        DB      3,1
         DB      0F7H,1          GENERATE 2 CRC BYTES
         DB      04EH,22
         DB      0,12
         DB      0F5H,3
         DB      0FBH,1          DATA HEADER
-DDDP1   DB      0AAH,128        SECTOR DATA
-DDDP2   DB      0AAH,128
+        DB      0E5H,128        SECTOR DATA
+        DB      0E5H,128        256
+        DB      0E5H,128        SECTOR DATA
+        DB      0E5H,128        512
+        DB      0E5H,128        SECTOR DATA
+        DB      0E5H,128
+        DB      0E5H,128        SECTOR DATA
+        DB      0E5H,128        1024
         DB      0F7H,1          GENERATE 2 CRC BYTES
         DB      04EH,43         GAP
         DB      0,0
-*
-SDTT    DB      0FFH,32
-SDTTA   DB      0,6
+* DOUBLE DENSITY
+DD08    DB      04EH,40         GAP
+        DB      0,12
+        DB      0F5H,3
+        DB      0FEH,1          SECTOR HEADER
+        DB      0,1
+        DB      0,1
+        DB      0,1
+        DB      2,1
+        DB      0F7H,1          GENERATE 2 CRC BYTES
+        DB      04EH,22
+        DB      0,12
+        DB      0F5H,3
+        DB      0FBH,1          DATA HEADER
+        DB      0E5H,128        SECTOR DATA
+        DB      0E5H,128        256
+        DB      0E5H,128        SECTOR DATA
+        DB      0E5H,128        512
+        DB      0F7H,1          GENERATE 2 CRC BYTES
+        DB      04EH,43         GAP
+        DB      0,0
+* DOUBLE DENSITY
+DD09    DB      04EH,40         GAP
+        DB      0,12
+        DB      0F5H,3
+        DB      0FEH,1          SECTOR HEADER
+        DB      0,1
+        DB      0,1
+        DB      0,1
+        DB      2,1
+        DB      0F7H,1          GENERATE 2 CRC BYTES
+        DB      04EH,22
+        DB      0,12
+        DB      0F5H,3
+        DB      0FBH,1          DATA HEADER
+        DB      0E5H,128        SECTOR DATA
+        DB      0E5H,128        256
+        DB      0E5H,128        SECTOR DATA
+        DB      0E5H,128        512
+        DB      0F7H,1          GENERATE 2 CRC BYTES
+        DB      04EH,43         GAP
+        DB      0,0
+* SINGLE DENSITY
+DD10    DB      0FFH,32
+        DB      0,6
         DB      0FEH,1
-SDTRK   DB      0,1
-SDSID   DB      0,1
-SDSEC   DB      0,1
-SDSIZ   DB      1,1
+        DB      0,1
+        DB      0,1
+        DB      0,1
+        DB      1,1
         DB      0F7H,1
         DB      0FFH,11
         DB      0,6
         DB      0FBH,1
-SDDP1   DB      0E5H,128
-SDDP2   DB      0E5H,128
+        DB      0E5H,128
+        DB      0E5H,128
         DB      0F7H,1
         DB      0FFH,16
+        DB      0,0
+* DOUBLE DENSITY
+DD16    DB      04EH,40         GAP
+        DB      0,12
+        DB      0F5H,3
+        DB      0FEH,1          SECTOR HEADER
+        DB      0,1
+        DB      0,1
+        DB      0,1
+        DB      1,1
+        DB      0F7H,1          GENERATE 2 CRC BYTES
+        DB      04EH,22
+        DB      0,12
+        DB      0F5H,3
+        DB      0FBH,1          DATA HEADER
+        DB      0AAH,128        SECTOR DATA
+        DB      0AAH,128
+        DB      0F7H,1          GENERATE 2 CRC BYTES
+        DB      04EH,43         GAP
         DB      0,0
 *
 * HEATH HDOS 5.25
