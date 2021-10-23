@@ -42,7 +42,7 @@ LSTAT5  EQU     TX5+5
 *
 START   EQU     *
         XRA     A
-        CALL    ZEROBUF
+        CALL    FILLBUF
 * DISMOUNT ALL DRIVES
         LXI     H,DEVSY0
         SCALL   .DMNMS
@@ -110,25 +110,32 @@ OUT35A  IN      LSTAT5
         OUT     TX5
         RET
 *
-ZEROBUF EQU     *
+CRLF    EQU     *
+        MVI     A,0DH
+        CALL    OUT350
+        MVI     A,0AH
+        CALL    OUT350
+        RET
+*
+FILLBUF EQU     *
         PUSH    D
         PUSH    H
         LXI     D,BUFSIZ
         LXI     H,SECBUF
-        CALL    ZEROMEM
+        CALL    FILLMEM
         POP     H
         POP     D
         RET
 * A=BYTE
 * HL=MEM
 * DE=SIZE
-ZEROMEM EQU     *
+FILLMEM EQU     *
         MOV     M,A
         INX     H
         DCX     D
         MOV     A,E
         ORA     D
-        JNZ     ZEROMEM
+        JNZ     FILLMEM
         RET
 * FLIP LATCH TO COMMAND MODE
 H37CMD  EQU     *
@@ -243,7 +250,7 @@ SUPINT  EQU     *
 * WAIT HERE UNTIL INTERRUPT JUMPS TO BLKICW
 WAITINT EQU     *
         JMP     WAITINT
-* C=TRACK
+* C=TRACK TO STEP TO
 STPIN   EQU     *
         CALL    SELDRV
         LXI     H,STPI2
@@ -260,7 +267,7 @@ STPI2   EQU     *
         JNZ     STPI1
         CALL    DLY40
         RET
-* C=TRACK
+* C=TRACK TO STEP TO
 STPOUT  EQU     *
         CALL    SELDRV
         LDA     CURTRK
@@ -509,10 +516,7 @@ CMDRD2  EQU     *
 * WRAP LINE AT TRACK 80
         MVI     A,'.'
         CALL    OUT350
-        MVI     A,0DH
-        CALL    OUT350
-        MVI     A,0AH
-        CALL    OUT350
+        CALL    CRLF
 CMDRD3  EQU     *
         XRA     A
         STA     SIDE            SET SIDE 1
@@ -520,10 +524,7 @@ CMDRD3  EQU     *
         LDA     NUMTRK
         CMP     C
         JNZ     CMDRD1
-        MVI     A,0DH
-        CALL    OUT350
-        MVI     A,0AH
-        CALL    OUT350
+        CALL    CRLF
         CALL    SEEK0
         JMP     BEGLP
 * SEND TRACK DATA TO 340Q
@@ -569,12 +570,12 @@ CMDWDI  EQU     *
         MOV     L,A
         SHLD    RDCNT
         EI                      38,400 BAUD EI
-        MOV     A,H
-        ADI     'A'
-        CALL    OUT350
-        MOV     A,L
-        ADI     'A'
-        CALL    OUT350
+*       MOV     A,H
+*       ADI     'A'
+*       CALL    OUT350
+*       MOV     A,L
+*       ADI     'A'
+*       CALL    OUT350
         CALL    SETMFM
         XRA     A
         STA     SIDE
@@ -699,10 +700,7 @@ CMDWD7  EQU     *
         JNZ     CMDWD8
         MVI     A,'.'
         CALL    OUT350
-        MVI     A,0DH
-        CALL    OUT350
-        MVI     A,0AH
-        CALL    OUT350
+        CALL    CRLF
 CMDWD8  EQU     *
         XRA     A
         STA     SIDE
@@ -783,11 +781,11 @@ FMTDS9  EQU     *
 *
 SETFMTD EQU     *
         MVI     A,04EH
-        CALL    ZEROBUF
+        CALL    FILLBUF
         RET
 SETFMTS EQU     *
         MVI     A,0FFH
-        CALL    ZEROBUF
+        CALL    FILLBUF
         RET
 * FORMAT FOR DOUBLE/SINGLE DENSITY
 FMTTRK  EQU     *
@@ -1065,14 +1063,11 @@ QUERY5  EQU     *
         LDA     NUMSID
         ADI     '0'
         CALL    OUT350
-        MVI     A,0DH
-        CALL    OUT350
-        MVI     A,0AH
-        CALL    OUT350
+        CALL    CRLF
         POP     B
         XRA     A
         STA     SIDE
-        CALL    ZEROBUF
+        CALL    FILLBUF
         CALL    READS           READ TRACK
 QUERYX  EQU     *
         CALL    QUERYR
@@ -1153,10 +1148,10 @@ GETTRK  EQU     *
         CALL    CHROUT          HANDSHAKE
         CALL    CHRIN           GET TRACK TO CHECK
         MOV     C,A             STORE TRACK
-        ADI     'A'
-        CALL    OUT350
-        MVI     A,' '
-        CALL    OUT350
+*       ADI     'A'
+*       CALL    OUT350
+*       MVI     A,' '
+*       CALL    OUT350
         PUSH    B
         CALL    $TYPTX
         DB      'READ TRACK HEADER',8AH
@@ -1417,3 +1412,4 @@ DD16    DB      04EH,40         GAP
 SECBUF  DS      BUFSIZ          MAX FULL TRACK
 *
         END     START
+>
