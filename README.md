@@ -8,3 +8,11 @@ Connect a host PC to the Heathkit computer on port 340Q and launch H8DUtility3 (
 Works together with the host software [H8DUtility3](https://github.com/lesbird/H8DUtility3) - these 2 projects will mostly stay in sync. Features added to WD179XImager will be supported by H8DUtility3 on the host PC.
 
 Switch to the DISK IMAGER in H8DUtility3 and click the "CLIENT STATUS" button.
+
+Supported formats
+* 5 sector 1024 bytes CP/M
+* 8 sector 512 bytes ZDOS/MSDOS
+* 9 sector 512 bytes ZDOS/MSDOS
+* 10 sector 256 bytes single density
+* 16 sector 256 bytes CP/M and HDOS
+
