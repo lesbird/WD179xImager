@@ -191,13 +191,14 @@ SELDRV  EQU     *
         RET
 * SET DENSITY FROM (DENS)
 SETDENS EQU     *
+        PUSH    B
         CALL    UNIBITS         A=DRIVE BIT
         ORI     CON.MO+CON.EI
         MOV     C,A
         LDA     DENS            CON.MFM OR 0
         ORA     C
         STA     CONCMD          DS0+CON.MO+CON.EI+CON.MFM
-*       OUT     DK.CON
+        POP     B
         RET
 *
 SETMFM  EQU     *
@@ -568,21 +569,25 @@ CMDWDI  EQU     *
         MOV     L,A
         SHLD    RDCNT
         EI                      38,400 BAUD EI
-*       MOV     A,H
-*       ADI     'A'
-*       CALL    OUT350
-*       MOV     A,L
-*       ADI     'A'
-*       CALL    OUT350
+        MOV     A,H
+        ADI     'A'
+        CALL    OUT350
+        MOV     A,L
+        ADI     'A'
+        CALL    OUT350
         CALL    SETMFM
         XRA     A
         STA     SIDE
         MOV     A,C             EVALUATE DENSITY
         ORA     A
         JZ      CMDWDS
+        CALL    $TYPTX
+        DB      'DOUBLE DENSITY',8AH
         CALL    SETFMTD
         JMP     CMDWD0
 CMDWDS  EQU     *
+        CALL    $TYPTX
+        DB      'SINGLE DENSITY',8AH
         CALL    SETFM
         CALL    SETFMTS
 CMDWD0  EQU     *
@@ -599,12 +604,12 @@ CMDWD1  EQU     *
         MVI     A,'R'
         CALL    OUT350
 * ASK FOR SECTOR DATA
+        DI
         MVI     A,'W'
         CALL    CHROUT
         CALL    CHRIN           WAIT FOR 'W' - DATA FOLLOWS
         LHLD    RDCNT
         LXI     D,SECBUF
-        DI
 * FILL SECBUF WITH TRACK DATA
 CMDWD2  EQU     *
         CALL    CHRIN
@@ -614,11 +619,10 @@ CMDWD2  EQU     *
         MOV     A,L
         ORA     H
         JNZ     CMDWD2
-*
         EI
         MVI     A,8
         CALL    OUT350
-        MVI     A,'A'
+        MVI     A,'|'
         CALL    OUT350
         MVI     A,1
         STA     CURSEC
@@ -672,7 +676,7 @@ CMDWD5  EQU     *
         JMP     CMDWD3
 * DO NEXT TRACK
 CMDWD6  EQU     *
-        MVI     A,'W'           HANDSHAKE
+        MVI     A,'W'
         CALL    CHROUT
         MVI     A,8
         CALL    OUT350
@@ -1018,17 +1022,58 @@ QUERY   EQU     *
         CALL    CHROUT
         CALL    $TYPTX
         DB      'QUERY DISK TYPE',8AH
+        CALL    QUERYI
         XRA     A
         STA     SPERT
         STA     NUMSID
-        LXI     B,0104H         SEC,TRK=4
-* CHECK DISK HEADER FIRST
+        STA     SIDE
+        CALL    SETMFM          TRY MFM FIRST
+        LXI     B,0104H
         CALL    SEEKTO
-        CALL    QUERYS
+QUERY1  EQU     *
+        PUSH    B
+        CALL    QUERYS          READ ADDRESS
+        POP     B
+        JNC     QUERY4          GOOD READ
+        LDA     DENS
+        ORA     A
+        JZ      QUERYX          INVALID DISK
+        PUSH    B
+        CALL    $TYPTX
+        DB      'TRY SINGLE DENSITY',8AH
+        POP     B
+        CALL    SETFM
+        JMP     QUERY1
+QUERY4  EQU     *
         LDA     QTRK
-        CPI     4               SHOULD BE TRACK 4
-        JNZ     QUERYX          NO? ABORT
-        CALL    QUERY1
+        CPI     4
+        JNZ     QUERYX          WRONG DISK TYPE
+        MVI     A,1
+        STA     SIDE
+        INR     A
+        STA     NUMSID          SET 2 SIDED
+        PUSH    B
+        CALL    QUERYS          TRY SIDE 2
+        POP     B
+        JNC     QUERY5          2 SIDED GOOD
+        MVI     A,1
+        STA     NUMSID          ELSE 1 SIDED
+QUERY5  EQU     *
+        PUSH    B
+        CALL    $TYPTX
+        DB      'SIDES=',80H
+        LDA     NUMSID
+        ADI     '0'
+        CALL    OUT350
+        MVI     A,0DH
+        CALL    OUT350
+        MVI     A,0AH
+        CALL    OUT350
+        POP     B
+        XRA     A
+        STA     SIDE
+        CALL    ZEROBUF
+        CALL    READS           READ TRACK
 QUERYX  EQU     *
         CALL    QUERYR
         JMP     BEGLP
@@ -1059,43 +1104,8 @@ QUERYR  EQU     *
         LDA     DENS            DENSITY CON.MFM OR 0
         CALL    CHROUT
         RET
-* READ/DETERMINE DISK TYPE
-QUERY1  EQU     *
-        XRA     A
-        STA     SPERT
-        MVI     A,CON.MFM       TEST MFM FIRST
-        STA     DENS
-        CALL    SELDRV
-        XRA     A
-        CALL    ZEROBUF
-QUERYL  EQU     *
-        MVI     A,2
-        STA     NUMSID          DOUBLE SIDED DEFAULT
-        DCR     A
-        STA     SIDE
-        MOV     B,A             SECTOR 1, C=TRK
-        CALL    READS           TEST READ SIDE 2
-        RNC
-        XRA     A
-        STA     SIDE
-        MVI     A,1
-        STA     NUMSID          SINGLE SIDED DISK
-        MOV     B,A
-        LDA     CURTRK
-        MOV     C,A
-        CALL    READS           READ A TRACK FILL SPERT+RDCNT
-        RNC                     GOOD SINGLE SIDE READ
-        LDA     DENS
-        CPI     CON.MFM
-        JNZ     QUERY3
-        CALL    $TYPTX
-        DB      'CHECKING SINGLE DENSITY',8AH
-        CALL    CHGDENS         MIGHT BE FM
-        LDA     CURTRK
-        MOV     C,A
-        JMP     QUERYL
-* JUST READ THE HEADER
-QUERYS  EQU     *
+*
+QUERYI  EQU     *
         XRA     A
         STA     QTRK
         STA     QSID
@@ -1103,6 +1113,10 @@ QUERYS  EQU     *
         STA     QSECL
         STA     QCRC1
         STA     QCRC2
+        RET
+* READ DISK HEADER
+QUERYS  EQU     *
+        CALL    SELDRV
         LXI     H,QUERY3
         SHLD    BLKICW
         LDA     CONCMD
@@ -1112,6 +1126,8 @@ QUERYS  EQU     *
         LXI     D,QBUF
         LXI     H,QUERY2
         XRA     A
+        LDA     SIDE
+        RAL
         ORI     FDC.RDA+FDF.DLF
         OUT     FD.CMD
 QUERY2  EQU     *               LOOP UNTIL IRQ4
@@ -1141,9 +1157,10 @@ GETTRK  EQU     *
         CALL    OUT350
         MVI     A,' '
         CALL    OUT350
-        CALL    SEEKTO
+        PUSH    B
         CALL    $TYPTX
         DB      'READ TRACK HEADER',8AH
+        POP     B
         XRA     A
         STA     SPERT
         STA     NUMSID
@@ -1151,6 +1168,8 @@ GETTRK  EQU     *
         CALL    QUERYR
         JMP     BEGLP
 GETTR0  EQU     *
+        CALL    QUERYI
+        CALL    SEEKTO
         CALL    SETMFM
 GETTR1  EQU     *
         CALL    QUERYS
